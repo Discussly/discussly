@@ -14,9 +14,13 @@ export class Peer {
     async connectTransport(transport_id, dtlsParameters) {
         if (!this.transports.has(transport_id)) return;
 
-        await this.transports.get(transport_id).connect({
-            dtlsParameters,
-        });
+        try {
+            await this.transports.get(transport_id).connect({
+                dtlsParameters,
+            });
+        } catch (err) {
+            console.log(err);
+        }
     }
 
     async createProducer(producerTransportId, rtpParameters, kind) {

@@ -11,14 +11,12 @@ async function loadDevice(routerRtpCapabilities) {
         }
     }
     await device.load({routerRtpCapabilities});
+
+    return device;
 }
 
-async function publish(socket, device, e) {
-    /*
-  const isWebcam = (e.target.id === 'btn_webcam');
-  $txtPublish = isWebcam ? $txtWebcam : $txtScreen;
-*/
-    const data = await socket.request("createProducerTransport", {
+async function publish(socket, device) {
+    const data = await socket.request("createWebRtcTransport", {
         forceTcp: false,
         rtpCapabilities: device.rtpCapabilities,
     });
@@ -29,18 +27,29 @@ async function publish(socket, device, e) {
     }
 
     const transport = device.createSendTransport(data);
+
     transport.on("connect", async ({dtlsParameters}, callback, errback) => {
-        socket.request("connectProducerTransport", {dtlsParameters}).then(callback).catch(errback);
+        const connection = await socket.request("connectTransport", {transport_id: transport._id, dtlsParameters});
+        if (connection) {
+            callback();
+        } else {
+            errback();
+        }
     });
 
+    const transportId = transport._id;
+
     transport.on("produce", async ({kind, rtpParameters}, callback, errback) => {
+        console.log(kind);
+
         try {
-            const {id} = await socket.request("produce", {
-                transportId: transport.id,
+            const {producer_id} = await socket.request("produce", {
                 kind,
                 rtpParameters,
+                transportId,
             });
-            callback({id});
+            console.warn("Producer ->", producer_id);
+            callback({producer_id});
         } catch (err) {
             errback(err);
         }
@@ -49,15 +58,20 @@ async function publish(socket, device, e) {
     let stream;
     try {
         stream = await getUserMedia(device, transport);
-        const track = stream.getVideoTracks()[0];
-        const params = {track};
-        const producer = await transport.produce(params);
+        if (stream.getAudioTracks()) {
+            const track = stream.getAudioTracks()[0];
+            const params = {
+                track,
+            };
+
+            const producer = await transport.produce(params);
+        }
     } catch (err) {
         console.log(err);
     }
 }
 
-async function getUserMedia(device, transport) {
+async function getUserMedia(device) {
     if (!device.canProduce("video")) {
         console.error("cannot produce video");
         return;
@@ -67,9 +81,7 @@ async function getUserMedia(device, transport) {
 
     let stream;
     try {
-        stream = isWebcam
-            ? await navigator.mediaDevices.getUserMedia({video: true})
-            : await navigator.mediaDevices.getDisplayMedia({video: true});
+        stream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
     } catch (err) {
         console.error("getUserMedia() failed:", err.message);
         throw err;
@@ -120,7 +132,7 @@ async function consume(transport, device, socket) {
 
 const getRtpCapabilities = async (socket) => {
     const data = await socket.request("getRouterRtpCapabilities");
-    await loadDevice(data);
+    return loadDevice(data);
 };
 
 const createRoom = async (socket, roomId) => {
@@ -131,7 +143,9 @@ const createRoom = async (socket, roomId) => {
 const joinRoom = async (socket, roomId, name) => {
     const joinedRoom = await socket.request("join", {room_id: roomId, name});
     console.log(joinedRoom);
-    getRtpCapabilities(socket);
+    // after you joined room, get RtpCapabilities
+    const device = await getRtpCapabilities(socket);
+    await publish(socket, device);
 };
 
 export {joinRoom, consume, getRtpCapabilities, createRoom, subscribe, getUserMedia, publish, loadDevice};

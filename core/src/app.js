@@ -158,12 +158,9 @@ async function runSocketServer() {
         });
 
         socket.on("createWebRtcTransport", async (_, callback) => {
-            console.log(
-                `---create webrtc transport--- name: ${roomList.get(socket.room_id).getPeers().get(socket.id).name}`,
-            );
             try {
                 const {params} = await roomList.get(socket.room_id).createWebRtcTransport(socket.id);
-
+                console.log(params);
                 callback(params);
             } catch (err) {
                 console.error(err);
@@ -181,19 +178,14 @@ async function runSocketServer() {
             callback("success");
         });
 
-        socket.on("produce", async ({kind, rtpParameters, producerTransportId}, callback) => {
+        socket.on("produce", async ({kind, rtpParameters, transportId}, callback) => {
+            console.log("Creating producer ->", kind, transportId);
             if (!roomList.has(socket.room_id)) {
                 return callback({error: "not is a room"});
             }
 
-            let producer_id = await roomList
-                .get(socket.room_id)
-                .produce(socket.id, producerTransportId, rtpParameters, kind);
-            console.log(
-                `---produce--- type: ${kind} name: ${
-                    roomList.get(socket.room_id).getPeers().get(socket.id).name
-                } id: ${producer_id}`,
-            );
+            let producer_id = await roomList.get(socket.room_id).produce(socket.id, transportId, rtpParameters, kind);
+
             callback({
                 producer_id,
             });
