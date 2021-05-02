@@ -15,6 +15,7 @@ export function Room() {
     };
     const [connectedSocket, setSocketId] = useState("");
     const [roomId, setRoomId] = useState("");
+    const [device, setDevice] = useState();
 
     // Socket check !
     useEffect(() => {
