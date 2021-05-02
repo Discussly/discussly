@@ -1,0 +1,39 @@
+{
+  "name": "core",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "type": "module",
+  "engines": {
+    "npm": "USE-PNPM",
+    "yarn": "USE-PNPM",
+    "pnpm": ">=3",
+    "node": ">= 12.14.0"
+  },
+    "scripts": {
+    "start": "node src/app.js",
+    "lint:fix": "eslint . --fix",
+    "dev": "nodemon src/app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "eslint-config-prettier": "^8.3.0",
+    "express": "^4.17.1",
+    "https": "^1.0.0",
+    "mediasoup": "^3.7.4",
+    "nodemon": "^2.0.7",
+    "socket.io": "^4.0.1",
+    "socketio": "^1.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^4.19.1",
+    "eslint-config-airbnb": "^16.1.0",
+    "eslint-plugin-import": "^2.22.1",
+    "eslint-plugin-jsx-a11y": "^6.0.3",
+    "eslint-plugin-prettier": "^2.7.0",
+    "eslint-plugin-react": "^7.23.2"
+  }
+}
