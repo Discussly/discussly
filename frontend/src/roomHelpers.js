@@ -38,7 +38,7 @@ async function publish(socket, device) {
     });
 
     const transportId = transport._id;
-
+    let producerId;
     transport.on("produce", async ({kind, rtpParameters}, callback, errback) => {
         console.log(kind);
 
@@ -48,7 +48,8 @@ async function publish(socket, device) {
                 rtpParameters,
                 transportId,
             });
-            console.warn("Producer ->", producer_id);
+            console.log("Producer id->", producer_id);
+            producerId = producer_id;
             callback({producer_id});
         } catch (err) {
             errback(err);
@@ -65,10 +66,13 @@ async function publish(socket, device) {
             };
 
             const producer = await transport.produce(params);
+            console.log(producer);
         }
     } catch (err) {
         console.log(err);
     }
+
+    return producerId;
 }
 
 async function getUserMedia(device) {
@@ -89,10 +93,12 @@ async function getUserMedia(device) {
     return stream;
 }
 
-async function subscribe(socket, device) {
-    const data = await socket.request("createConsumerTransport", {
+async function subscribe(socket, device, producerId) {
+    const data = await socket.request("createWebRtcTransport", {
         forceTcp: false,
+        rtpCapabilities: device.rtpCapabilities,
     });
+
     if (data.error) {
         console.error(data.error);
         return;
@@ -101,7 +107,7 @@ async function subscribe(socket, device) {
     const transport = device.createRecvTransport(data);
     transport.on("connect", ({dtlsParameters}, callback, errback) => {
         socket
-            .request("connectConsumerTransport", {
+            .request("connectTransport", {
                 transportId: transport.id,
                 dtlsParameters,
             })
@@ -109,25 +115,45 @@ async function subscribe(socket, device) {
             .catch(errback);
     });
 
-    const stream = consume(transport);
+    const {stream, consumer} = await consume(transport, socket, device, producerId);
+
+    console.log(stream);
+
+    const el = document.createElement(consumer.kind);
+
+    el.setAttribute("playsinline", true);
+    el.setAttribute("autoplay", true);
+    el.srcObject = new MediaStream([consumer.track.clone()]);
+    el.consumer = consumer;
+    console.log(el);
+    await el.play();
 }
 
-async function consume(transport, device, socket) {
+async function consume(transport, socket, device, producer_id) {
     const {rtpCapabilities} = device;
-    const data = await socket.request("consume", {rtpCapabilities});
+    const consumerTransportId = transport._id;
+    const data = await socket.request("consume", {consumerTransportId, producerId: producer_id, rtpCapabilities});
     const {producerId, id, kind, rtpParameters} = data;
 
     let codecOptions = {};
-    const consumer = await transport.consume({
-        id,
-        producerId,
-        kind,
-        rtpParameters,
-        codecOptions,
-    });
-    const stream = new MediaStream();
-    stream.addTrack(consumer.track);
-    return stream;
+    try {
+        const consumer = await transport.consume({
+            id,
+            producerId,
+            kind,
+            rtpParameters,
+        });
+
+        const stream = new MediaStream();
+        console.log(consumer, await consumer.getStats());
+        consumer.observer.on("close", () => {
+            console.log("test");
+        });
+        stream.addTrack(consumer.track);
+        return {stream, consumer};
+    } catch (err) {
+        console.log(err);
+    }
 }
 
 const getRtpCapabilities = async (socket) => {
@@ -145,7 +171,9 @@ const joinRoom = async (socket, roomId, name) => {
     console.log(joinedRoom);
     // after you joined room, get RtpCapabilities
     const device = await getRtpCapabilities(socket);
-    await publish(socket, device);
+    const producerId = await publish(socket, device);
+
+    await subscribe(socket, device, producerId);
 };
 
 export {joinRoom, consume, getRtpCapabilities, createRoom, subscribe, getUserMedia, publish, loadDevice};

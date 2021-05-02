@@ -137,15 +137,6 @@ async function runSocketServer() {
             cb(roomList.get(room_id).toJson());
         });
 
-        socket.on("getProducers", () => {
-            console.log(`---get producers--- name:${roomList.get(socket.room_id).getPeers().get(socket.id).name}`);
-            // send all the current producer to newly joined member
-            if (!roomList.has(socket.room_id)) return;
-            let producerList = roomList.get(socket.room_id).getProducerListForPeer(socket.id);
-
-            socket.emit("newProducers", producerList);
-        });
-
         socket.on("getRouterRtpCapabilities", (_, callback) => {
             console.log(roomList);
             try {
@@ -197,12 +188,17 @@ async function runSocketServer() {
                 .get(socket.room_id)
                 .consume(socket.id, consumerTransportId, producerId, rtpCapabilities);
 
-            console.log(
-                `---consuming--- name: ${
-                    roomList.get(socket.room_id) && roomList.get(socket.room_id).getPeers().get(socket.id).name
-                } prod_id:${producerId} consumer_id:${params.id}`,
-            );
+            console.log(`---consuming--- name: ${roomList.get(socket.room_id).getPeers().get(socket.id).name}`);
             callback(params);
+        });
+
+        socket.on("getProducers", () => {
+            console.log(`---get producers--- name:${roomList.get(socket.room_id).getPeers().get(socket.id).name}`);
+            // send all the current producer to newly joined member
+            if (!roomList.has(socket.room_id)) return;
+            let producerList = roomList.get(socket.room_id).getProducerListForPeer(socket.id);
+
+            socket.emit("newProducers", producerList);
         });
 
         socket.on("resume", async (data, callback) => {
