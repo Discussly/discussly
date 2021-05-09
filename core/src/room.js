@@ -19,10 +19,15 @@ export class Room {
     }
 
     addPeer(peer) {
+        if (this.peers.has(peer.id)) {
+            console.log("exist user");
+            return true;
+        }
         this.peers.set(peer.id, peer);
+        console.log("Peer added ...", peer.id);
     }
 
-    getProducerListForPeer(socket_id) {
+    getProducerListForPeer() {
         let producerList = [];
         this.peers.forEach((peer) => {
             peer.producers.forEach((producer) => {
@@ -86,18 +91,17 @@ export class Room {
 
     async produce(socket_id, producerTransportId, rtpParameters, kind) {
         // handle undefined errors
-        return new Promise(
-            async function (resolve, reject) {
-                let producer = await this.peers.get(socket_id).createProducer(producerTransportId, rtpParameters, kind);
-                resolve(producer.id);
-                this.broadCast(socket_id, "newProducers", [
-                    {
-                        producer_id: producer.id,
-                        producer_socket_id: socket_id,
-                    },
-                ]);
-            }.bind(this),
-        );
+
+        let producer = await this.peers.get(socket_id).createProducer(producerTransportId, rtpParameters, kind);
+
+        this.broadCast(socket_id, "newProducers", [
+            {
+                producer_id: producer.id,
+                producer_socket_id: socket_id,
+            },
+        ]);
+
+        return producer.id;
     }
 
     async consume(socket_id, consumer_transport_id, producer_id, rtpCapabilities) {
@@ -151,7 +155,7 @@ export class Room {
     }
 
     send(socket_id, name, data) {
-        this.io.to(socket_id).emit(name, data);
+        this.io.broadcast.emit(data);
     }
 
     getPeers() {

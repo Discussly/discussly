@@ -23,8 +23,8 @@ let consumer;
     try {
         await runExpressApp();
         await runWebServer();
-        await runSocketServer();
         await runMediasoupWorker();
+        await runSocketServer();
     } catch (err) {
         console.log(err);
     }
@@ -104,6 +104,10 @@ async function runSocketServer() {
     socketServer.on("connection", (socket) => {
         console.log("client connected");
 
+        const firstRoom = roomList.keys().next().value;
+
+        socket.emit("existingRooms", firstRoom);
+
         socket.on("disconnect", () => {
             console.log("client disconnected");
         });
@@ -119,26 +123,36 @@ async function runSocketServer() {
                 console.log("---created room--- ", room_id);
                 let worker = await getMediasoupWorker();
                 roomList.set(room_id, new Room(room_id, worker, socket));
-                console.log(roomList.size);
                 callback(room_id);
             }
         });
 
         socket.on("join", ({room_id, name}, cb) => {
-            console.log('---user joined--- "' + room_id + '": ' + name);
             if (!roomList.has(room_id)) {
                 return cb({
                     error: "room does not exist",
                 });
             }
-            roomList.get(room_id).addPeer(new Peer(socket.id, name));
-            socket.room_id = room_id;
 
-            cb(roomList.get(room_id).toJson());
+            console.log(socket.id);
+            const exist = roomList.get(room_id).addPeer(new Peer(socket.id, name));
+
+            if (exist) {
+                cb(true);
+            } else {
+                console.log("-------------------------------------------------------------");
+                console.log('---user joined--- "' + room_id + '": ' + name);
+                socket.room_id = room_id;
+                socket.join(room_id);
+
+                let producerList = roomList.get(socket.room_id).getProducerListForPeer();
+                // roomList.get(room_id).broadCast(socket.id, "producers", producerList);
+
+                cb(roomList.get(room_id).toJson());
+            }
         });
 
         socket.on("getRouterRtpCapabilities", (_, callback) => {
-            console.log(roomList);
             try {
                 callback(roomList.get(socket.room_id).getRtpCapabilities());
             } catch (e) {
@@ -148,10 +162,9 @@ async function runSocketServer() {
             }
         });
 
-        socket.on("createWebRtcTransport", async (_, callback) => {
+        socket.on("createWebRtcTransport", async (data, callback) => {
             try {
                 const {params} = await roomList.get(socket.room_id).createWebRtcTransport(socket.id);
-                console.log(params);
                 callback(params);
             } catch (err) {
                 console.error(err);
@@ -170,35 +183,47 @@ async function runSocketServer() {
         });
 
         socket.on("produce", async ({kind, rtpParameters, transportId}, callback) => {
-            console.log("Creating producer ->", kind, transportId);
+            console.log("-------------------------------------------------------------");
             if (!roomList.has(socket.room_id)) {
                 return callback({error: "not is a room"});
             }
 
             let producer_id = await roomList.get(socket.room_id).produce(socket.id, transportId, rtpParameters, kind);
+            console.log("Creating producer ->", kind, producer_id);
 
+            socket.broadcast.emit("newProducerJoined", producer_id);
             callback({
                 producer_id,
             });
+
+            console.log("-------------------------------------------------------------");
         });
 
         socket.on("consume", async ({consumerTransportId, producerId, rtpCapabilities}, callback) => {
-            //TODO null handling
+            console.log("-------------------------------------------------------------");
+            console.log(
+                `Creating consumer for -> ConsumerTransportId: ${consumerTransportId}, ProducerId: ${producerId}`,
+            );
             let params = await roomList
                 .get(socket.room_id)
                 .consume(socket.id, consumerTransportId, producerId, rtpCapabilities);
 
-            console.log(`---consuming--- name: ${roomList.get(socket.room_id).getPeers().get(socket.id).name}`);
             callback(params);
+            console.log("-------------------------------------------------------------");
         });
 
-        socket.on("getProducers", () => {
-            console.log(`---get producers--- name:${roomList.get(socket.room_id).getPeers().get(socket.id).name}`);
+        socket.on("producers", (data) => {
+            console.log(data);
+        });
+
+        socket.on("getProducers", (_, callback) => {
             // send all the current producer to newly joined member
             if (!roomList.has(socket.room_id)) return;
-            let producerList = roomList.get(socket.room_id).getProducerListForPeer(socket.id);
-
-            socket.emit("newProducers", producerList);
+            let producerList = roomList.get(socket.room_id).getProducerListForPeer();
+            if (producerList.length > 0) {
+                console.log(`Producer list in the room ---> ${producerList}`);
+            }
+            callback(producerList);
         });
 
         socket.on("resume", async (data, callback) => {

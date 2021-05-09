@@ -4,13 +4,14 @@ async function loadDevice(routerRtpCapabilities) {
     let device;
     try {
         device = new Device();
-        console.log(device);
+        console.log(device.loaded);
     } catch (error) {
         if (error.name === "UnsupportedError") {
             console.error("browser not supported");
         }
     }
     await device.load({routerRtpCapabilities});
+    console.log(device.loaded);
 
     return device;
 }
@@ -26,6 +27,8 @@ async function publish(socket, device) {
         return;
     }
 
+    console.log(device.canProduce("audio"));
+
     const transport = device.createSendTransport(data);
 
     transport.on("connect", async ({dtlsParameters}, callback, errback) => {
@@ -38,7 +41,6 @@ async function publish(socket, device) {
     });
 
     const transportId = transport._id;
-    let producerId;
     transport.on("produce", async ({kind, rtpParameters}, callback, errback) => {
         console.log(kind);
 
@@ -49,43 +51,52 @@ async function publish(socket, device) {
                 transportId,
             });
             console.log("Producer id->", producer_id);
-            producerId = producer_id;
-            callback({producer_id});
+            callback({id: producer_id});
         } catch (err) {
+            console.error(err);
             errback(err);
+        }
+    });
+
+    transport.on("connectionstatechange", (state) => {
+        switch (state) {
+            case "connecting":
+                console.log("publishing...");
+                break;
+
+            case "connected":
+                console.log("published");
+                break;
+
+            case "failed":
+                console.log("failed");
+                transport.close();
+                break;
+
+            default:
+                break;
         }
     });
 
     let stream;
     try {
-        stream = await getUserMedia(device, transport);
+        stream = await getUserMedia();
         if (stream.getAudioTracks()) {
             const track = stream.getAudioTracks()[0];
-            const params = {
-                track,
-            };
 
-            const producer = await transport.produce(params);
+            const producer = await transport.produce({track});
             console.log(producer);
         }
     } catch (err) {
         console.log(err);
     }
-
-    return producerId;
 }
 
-async function getUserMedia(device) {
-    if (!device.canProduce("video")) {
-        console.error("cannot produce video");
-        return;
-    }
-
-    let isWebcam = false;
-
+async function getUserMedia() {
     let stream;
     try {
         stream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
+        console.log(stream);
     } catch (err) {
         console.error("getUserMedia() failed:", err.message);
         throw err;
@@ -105,28 +116,42 @@ async function subscribe(socket, device, producerId) {
     }
 
     const transport = device.createRecvTransport(data);
-    transport.on("connect", ({dtlsParameters}, callback, errback) => {
-        socket
-            .request("connectTransport", {
+    transport.on("connect", async ({dtlsParameters}, callback, errback) => {
+        try {
+            const connection = await socket.request("connectTransport", {
                 transportId: transport.id,
                 dtlsParameters,
-            })
-            .then(callback)
-            .catch(errback);
+            });
+
+            console.log("Consumer connected", connection);
+            callback();
+        } catch (err) {
+            errback(err);
+        }
     });
 
-    const {stream, consumer} = await consume(transport, socket, device, producerId);
+    transport.on("connectionstatechange", (state) => {
+        switch (state) {
+            case "connecting":
+                console.log("consumer publishing...");
+                break;
 
-    console.log(stream);
+            case "connected":
+                console.log("consumer published");
+                break;
 
-    const el = document.createElement(consumer.kind);
+            case "failed":
+                console.log("consumer failed");
+                transport.close();
+                break;
 
-    el.setAttribute("playsinline", true);
-    el.setAttribute("autoplay", true);
-    el.srcObject = new MediaStream([consumer.track.clone()]);
-    el.consumer = consumer;
-    console.log(el);
-    await el.play();
+            default:
+                break;
+        }
+    });
+
+    console.log(producerId);
+    await consume(transport, socket, device, producerId);
 }
 
 async function consume(transport, socket, device, producer_id) {
@@ -134,23 +159,46 @@ async function consume(transport, socket, device, producer_id) {
     const consumerTransportId = transport._id;
     const data = await socket.request("consume", {consumerTransportId, producerId: producer_id, rtpCapabilities});
     const {producerId, id, kind, rtpParameters} = data;
-
-    let codecOptions = {};
+    const codecOptions = {};
     try {
         const consumer = await transport.consume({
             id,
             producerId,
             kind,
             rtpParameters,
+            codecOptions,
         });
 
-        const stream = new MediaStream();
-        console.log(consumer, await consumer.getStats());
-        consumer.observer.on("close", () => {
-            console.log("test");
+        console.log(consumer.track);
+
+        if (consumer.kind === "audio") {
+            const video = document.createElement("video");
+            const stream = new MediaStream();
+            stream.addTrack(consumer.track);
+            video.srcObject = stream;
+            video.autoplay = true;
+            video.muted = true;
+            video.width = 240;
+            video.height = 180;
+            video.volume = 1.0;
+            video.controls = "1";
+            video.style = "border: solid green 5px;";
+            document.getElementById("container").appendChild(video);
+            console.log(consumer);
+            await video
+                .play()
+                .then(() => {
+                    console.log("caliyor");
+                    video.muted = false;
+                })
+                .catch((e) => {
+                    console.log(e);
+                });
+        }
+
+        consumer.on("close", () => {
+            console.log("Consumer closed");
         });
-        stream.addTrack(consumer.track);
-        return {stream, consumer};
     } catch (err) {
         console.log(err);
     }
@@ -169,11 +217,10 @@ const createRoom = async (socket, roomId) => {
 const joinRoom = async (socket, roomId, name) => {
     const joinedRoom = await socket.request("join", {room_id: roomId, name});
     console.log(joinedRoom);
-    // after you joined room, get RtpCapabilities
-    const device = await getRtpCapabilities(socket);
-    const producerId = await publish(socket, device);
 
-    await subscribe(socket, device, producerId);
+    if (joinedRoom === true) {
+        return;
+    }
 };
 
 export {joinRoom, consume, getRtpCapabilities, createRoom, subscribe, getUserMedia, publish, loadDevice};

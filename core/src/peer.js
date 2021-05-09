@@ -52,7 +52,7 @@ export class Peer {
             consumer = await consumerTransport.consume({
                 producerId: producer_id,
                 rtpCapabilities,
-                paused: true,
+                paused: false,
             });
         } catch (err) {
             console.error("consume failed", error);
