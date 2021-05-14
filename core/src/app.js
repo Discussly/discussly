@@ -29,6 +29,11 @@ import {
     removeConsumer,
     addConsumerTrasport,
     createTransport,
+    sendReject,
+    sendBack,
+    getRoomName,
+    setRoomName,
+    sendResponse,
 } from "./helper.js";
 
 let webServer;
@@ -114,7 +119,7 @@ async function runSocketServer() {
 
     socketServer.on("connection", (socket) => {
         socket.on("disconnect", function () {
-            const roomName = getRoomname();
+            const roomName = getRoomName(socket);
 
             // close user connection
             cleanUpPeer(roomName, socket);
@@ -156,12 +161,12 @@ async function runSocketServer() {
 
             // --- socket.io room ---
             socket.join(roomId);
-            setRoomname(roomId);
+            setRoomName(socket, roomId);
         });
 
         // --- producer ----
         socket.on("createProducerTransport", async (data, callback) => {
-            const roomName = getRoomname();
+            const roomName = getRoomName(socket);
 
             console.log("-- createProducerTransport ---room=%s", roomName);
             const {transport, params} = await createTransport(roomName);
@@ -185,14 +190,14 @@ async function runSocketServer() {
         });
 
         socket.on("connectProducerTransport", async (data, callback) => {
-            const roomName = getRoomname();
+            const roomName = getRoomName(socket);
             const transport = getProducerTrasnport(roomName, getId(socket));
             await transport.connect({dtlsParameters: data.dtlsParameters});
             sendResponse({}, callback);
         });
 
         socket.on("produce", async (data, callback) => {
-            const roomName = getRoomname();
+            const roomName = getRoomName(socket);
             const {kind, rtpParameters} = data;
             console.log("-- produce --- kind=" + kind);
             const id = getId(socket);
@@ -223,7 +228,7 @@ async function runSocketServer() {
 
         // --- consumer ----
         socket.on("createConsumerTransport", async (data, callback) => {
-            const roomName = getRoomname();
+            const roomName = getRoomName(socket);
             console.log("-- createConsumerTransport -- id=" + getId(socket));
             const {transport, params} = await createTransport(roomName);
             addConsumerTrasport(roomName, getId(socket), transport);
@@ -237,7 +242,7 @@ async function runSocketServer() {
         });
 
         socket.on("connectConsumerTransport", async (data, callback) => {
-            const roomName = getRoomname();
+            const roomName = getRoomName(socket);
             console.log("-- connectConsumerTransport -- id=" + getId(socket));
             let transport = getConsumerTrasnport(roomName, getId(socket));
             if (!transport) {
@@ -259,7 +264,7 @@ async function runSocketServer() {
         });
 
         socket.on("getCurrentProducers", async (data, callback) => {
-            const roomName = getRoomname();
+            const roomName = getRoomName(socket);
             const clientId = data.localId;
             console.log("-- getCurrentProducers for Id=" + clientId);
 
@@ -272,7 +277,7 @@ async function runSocketServer() {
         });
 
         socket.on("consumeAdd", async (data, callback) => {
-            const roomName = getRoomname();
+            const roomName = getRoomName(socket);
             const localId = getId(socket);
             const kind = data.kind;
             console.log("-- consumeAdd -- localId=%s kind=%s", localId, kind);
@@ -311,7 +316,7 @@ async function runSocketServer() {
         });
 
         socket.on("resumeAdd", async (data, callback) => {
-            const roomName = getRoomname();
+            const roomName = getRoomName(socket);
             const localId = getId(socket);
             const remoteId = data.remoteId;
             const kind = data.kind;
@@ -327,31 +332,7 @@ async function runSocketServer() {
 
         // ---- sendback welcome message with on connected ---
         const newId = getId(socket);
-        sendback(socket, {type: "welcome", id: newId});
-
-        // --- send response to client ---
-        function sendResponse(response, callback) {
-            //console.log('sendResponse() callback:', callback);
-            callback(null, response);
-        }
-
-        // --- send error to client ---
-        function sendReject(error, callback) {
-            callback(error.toString(), null);
-        }
-
-        function sendback(socket, message) {
-            socket.emit("message", message);
-        }
-
-        function setRoomname(room) {
-            socket.roomname = room;
-        }
-
-        function getRoomname() {
-            const room = socket.roomname;
-            return room;
-        }
+        sendBack(socket, {type: "welcome", id: newId});
     });
 }
 

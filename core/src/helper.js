@@ -262,6 +262,30 @@ export async function setupRoom(worker, name) {
     return room;
 }
 
+// --- send response to client ---
+export const sendResponse = (response, callback) => {
+    //console.log('sendResponse() callback:', callback);
+    callback(null, response);
+};
+
+// --- send error to client ---
+export const sendReject = (error, callback) => {
+    callback(error.toString(), null);
+};
+
+export const sendBack = (socket, message) => {
+    socket.emit("message", message);
+};
+
+export const setRoomName = (socket, room) => {
+    socket.roomname = room;
+};
+
+export const getRoomName = (socket) => {
+    const room = socket.roomname;
+    return room;
+};
+
 export function cleanUpPeer(roomname, socket) {
     const id = getId(socket);
     removeConsumerSetDeep(roomname, id);
