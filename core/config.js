@@ -2,6 +2,7 @@ import os from "os";
 
 export default {
     // Worker settings
+    numWorkers: Object.keys(os.cpus()).length,
     worker: {
         rtcMinPort: 10000,
         rtcMaxPort: 10100,

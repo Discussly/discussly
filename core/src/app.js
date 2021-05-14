@@ -3,9 +3,7 @@
 "use strict";
 
 import express from "express";
-//import https from "https";
 import http from "http";
-import fs from "fs";
 import path from "path";
 import mediasoup from "mediasoup";
 import * as socketIO from "socket.io";
@@ -26,7 +24,6 @@ import {
     createConsumer,
     addConsumer,
     getConsumer,
-    getClientCount,
     cleanUpPeer,
     addProducerTrasport,
     removeConsumer,
@@ -38,6 +35,9 @@ let webServer;
 let socketServer;
 let expressApp;
 let worker;
+let defaultRoom = null;
+let nextMediasoupWorkerIdx = 0;
+const workers = [];
 let localId;
 
 // Run express app, configs. middlewares.
@@ -355,19 +355,46 @@ async function runSocketServer() {
     });
 }
 
-let defaultRoom = null;
-async function startWorker() {
-    worker = await mediasoup.createWorker();
+/**
+ * Get next mediasoup Worker.
+ */
+const getMediasoupWorker = () => {
+    const worker = workers[nextMediasoupWorkerIdx];
+
+    if (++nextMediasoupWorkerIdx === workers.length) nextMediasoupWorkerIdx = 0;
+
+    return worker;
+};
+
+const runMediasoupWorker = async () => {
+    let {numWorkers} = mediasoupOptions;
+    let worker;
+
+    for (let i = 0; i < numWorkers; i++) {
+        worker = await mediasoup.createWorker({
+            logLevel: mediasoupOptions.worker.logLevel,
+            logTags: mediasoupOptions.worker.logTags,
+            rtcMinPort: mediasoupOptions.worker.rtcMinPort,
+            rtcMaxPort: mediasoupOptions.worker.rtcMaxPort,
+        });
+
+        worker.on("died", () => {
+            console.error("mediasoup worker died, exiting in 2 seconds... [pid:%d]", worker.pid);
+            setTimeout(() => process.exit(1), 2000);
+        });
+        workers.push(worker);
+    }
 
     defaultRoom = await setupRoom(worker, "_default_room");
     console.log("-- mediasoup worker start. -- room:", defaultRoom.name);
-}
+};
 
 (async () => {
     try {
         await runExpressApp();
         await runWebServer();
-        await startWorker();
+        await runMediasoupWorker();
+        worker = getMediasoupWorker();
         await runSocketServer();
     } catch (err) {
         console.log(err);

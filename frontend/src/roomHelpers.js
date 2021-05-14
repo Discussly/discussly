@@ -1,62 +1,30 @@
 /* eslint-disable no-undef */
 /* eslint-disable no-param-reassign */
 import {Device} from "mediasoup-client";
-
-async function loadDevice(routerRtpCapabilities) {
-    try {
-        device = new Device();
-    } catch (error) {
-        if (error.name === "UnsupportedError") {
-            console.error("browser not supported");
-        }
-    }
-    await device.load({routerRtpCapabilities});
-}
-
-let localStream;
-function startMedia() {
-    if (localStream) {
-        console.warn("WARN: local media ALREADY started");
-        return;
-    }
-    const localVideo = document.getElementById("local_video");
-
-    navigator.mediaDevices
-        .getUserMedia({audio: true, video: true})
-        .then((stream) => {
-            localStream = stream;
-            playVideo(localVideo, localStream);
-        })
-        .catch((err) => {
-            console.error("media ERROR:", err);
-        });
-}
-
 const io = require("socket.io-client");
+
 const {REACT_APP_SERVER_HOST, REACT_APP_SERVER_PORT} = process.env;
 const serverUrl = `http://${REACT_APP_SERVER_HOST}:${REACT_APP_SERVER_PORT}`;
 const opts = {
     path: "/server",
     transports: ["websocket"],
 };
-let socket;
 let device;
 let clientId;
+let localStream;
 let producerTransport;
 let consumerTransport;
 let videoConsumers = {};
 let audioConsumers = {};
-let videoProducer = null;
-let audioProducer = null;
 
-async function connectSocket(connectedSocket) {
+const connectSocket = (connectedSocket) => {
     if (connectedSocket) {
         connectedSocket.close();
-        socket = null;
+        connectedSocket = null;
         clientId = null;
     }
 
-    socket = io.connect(serverUrl, opts);
+    const socket = io.connect(serverUrl, opts);
 
     console.log(socket);
 
@@ -90,11 +58,11 @@ async function connectSocket(connectedSocket) {
         const {kind} = message;
         if (kind === "video") {
             console.log("--try consumeAdd remoteId=" + remoteId + ", prdId=" + prdId + ", kind=" + kind);
-            consumeAdd(consumerTransport, remoteId, prdId, kind);
+            consumeAdd(socket, consumerTransport, remoteId, prdId, kind);
         } else if (kind === "audio") {
             //console.warn('-- audio NOT SUPPORTED YET. skip remoteId=' + remoteId + ', prdId=' + prdId + ', kind=' + kind);
             console.log("--try consumeAdd remoteId=" + remoteId + ", prdId=" + prdId + ", kind=" + kind);
-            consumeAdd(consumerTransport, remoteId, prdId, kind);
+            consumeAdd(socket, consumerTransport, remoteId, prdId, kind);
         }
     });
 
@@ -107,48 +75,61 @@ async function connectSocket(connectedSocket) {
         removeConsumer(remoteId, kind);
         removeRemoteVideo(remoteId);
     });
-}
 
-function disconnectSocket() {
-    if (socket) {
-        socket.close();
-        socket = null;
-        clientId = null;
-        console.log("socket.io closed..");
+    return socket;
+};
+
+const loadDevice = async (routerRtpCapabilities) => {
+    try {
+        device = new Device();
+    } catch (error) {
+        if (error.name === "UnsupportedError") {
+            console.error("browser not supported");
+        }
     }
-}
+    await device.load({routerRtpCapabilities});
+};
 
-function isSocketConnected() {
-    if (socket) {
-        return true;
-    } else {
-        return false;
+const startMedia = () => {
+    if (localStream) {
+        console.warn("WARN: local media ALREADY started");
+        return;
     }
-}
+    const localVideo = document.getElementById("local_video");
 
-async function publish() {
-    if (!localStream) {
-        console.warn("WARN: local media NOT READY");
+    navigator.mediaDevices
+        .getUserMedia({audio: true, video: true})
+        .then((stream) => {
+            localStream = stream;
+            playVideo(localVideo, localStream);
+        })
+        .catch((err) => {
+            console.error("media ERROR:", err);
+        });
+};
+
+const publish = async () => {
+    let socket;
+    try {
+        socket = connectSocket();
+        console.log(socket);
+    } catch (e) {
+        console.error(e);
+    }
+
+    if (!localStream || !socket) {
+        console.warn("WARN: local media or socket NOT READY");
         return;
     }
 
-    try {
-        // --- connect socket.io ---
-        await connectSocket();
-    } catch (e) {
-        console.log(e);
-    }
-
-    console.warn(socket);
-
     // --- get capabilities --
-    const data = await sendRequest("getRouterRtpCapabilities", {});
+    const data = await sendRequest(socket, "getRouterRtpCapabilities", {});
     console.log("getRouterRtpCapabilities:", data);
     await loadDevice(data);
 
     // --- get transport info ---
     console.log("--- createProducerTransport --");
-    const params = await sendRequest("createProducerTransport", {});
+    const params = await sendRequest(socket, "createProducerTransport", {});
     console.log("transport params:", params);
     producerTransport = device.createSendTransport(params);
     console.log("createSendTransport:", producerTransport);
@@ -156,20 +137,20 @@ async function publish() {
     // --- join & start publish --
     producerTransport.on("connect", async ({dtlsParameters}, callback, errback) => {
         console.log("--trasnport connect");
-        sendRequest("connectProducerTransport", {dtlsParameters: dtlsParameters}).then(callback).catch(errback);
+        sendRequest(socket, "connectProducerTransport", {dtlsParameters: dtlsParameters}).then(callback).catch(errback);
     });
 
     producerTransport.on("produce", async ({kind, rtpParameters}, callback, errback) => {
         console.log("--trasnport produce");
         try {
-            const {id} = await sendRequest("produce", {
+            const {id} = await sendRequest(socket, "produce", {
                 transportId: producerTransport.id,
                 kind,
                 rtpParameters,
             });
             callback({id});
             console.log("--produce requested, then subscribe ---");
-            subscribe();
+            subscribe(socket);
         } catch (err) {
             errback(err);
         }
@@ -201,27 +182,27 @@ async function publish() {
         const videoTrack = localStream.getVideoTracks()[0];
         if (videoTrack) {
             const trackParams = {track: videoTrack};
-            videoProducer = await producerTransport.produce(trackParams);
+            await producerTransport.produce(trackParams);
         }
     }
     if (useAudio) {
         const audioTrack = localStream.getAudioTracks()[0];
         if (audioTrack) {
             const trackParams = {track: audioTrack};
-            audioProducer = await producerTransport.produce(trackParams);
+            producerTransport.produce(trackParams);
         }
     }
-}
+};
 
-async function subscribe() {
-    if (!isSocketConnected()) {
+const subscribe = async (socket) => {
+    if (!socket) {
         await connectSocket().catch((err) => {
             console.error(err);
             return;
         });
 
         // --- get capabilities --
-        const data = await sendRequest("getRouterRtpCapabilities", {});
+        const data = await sendRequest(socket, "getRouterRtpCapabilities", {});
         console.log("getRouterRtpCapabilities:", data);
         await loadDevice(data);
     }
@@ -229,7 +210,7 @@ async function subscribe() {
     // --- prepare transport ---
     console.log("--- createConsumerTransport --");
     if (!consumerTransport) {
-        const params = await sendRequest("createConsumerTransport", {});
+        const params = await sendRequest(socket, "createConsumerTransport", {});
         console.log("transport params:", params);
         consumerTransport = device.createRecvTransport(params);
         console.log("createConsumerTransport:", consumerTransport);
@@ -237,7 +218,7 @@ async function subscribe() {
         // --- join & start publish --
         consumerTransport.on("connect", async ({dtlsParameters}, callback, errback) => {
             console.log("--consumer trasnport connect");
-            sendRequest("connectConsumerTransport", {dtlsParameters: dtlsParameters})
+            sendRequest(socket, "connectConsumerTransport", {dtlsParameters: dtlsParameters})
                 .then(() => {
                     callback();
                 })
@@ -265,37 +246,36 @@ async function subscribe() {
             }
         });
 
-        consumeCurrentProducers(clientId);
+        consumeCurrentProducers(socket, clientId);
     }
-}
+};
 
-async function consumeCurrentProducers(clientId) {
+const consumeCurrentProducers = async (socket, clientId) => {
     console.log("-- try consuleAll() --");
-    const remoteInfo = await sendRequest("getCurrentProducers", {localId: clientId}).catch((err) => {
+    const remoteInfo = await sendRequest(socket, "getCurrentProducers", {localId: clientId}).catch((err) => {
         console.error("getCurrentProducers ERROR:", err);
         return;
     });
     //console.log('remoteInfo.producerIds:', remoteInfo.producerIds);
     console.log("remoteInfo.remoteVideoIds:", remoteInfo.remoteVideoIds);
     console.log("remoteInfo.remoteAudioIds:", remoteInfo.remoteAudioIds);
-    consumeAll(consumerTransport, remoteInfo.remoteVideoIds, remoteInfo.remoteAudioIds);
-}
+    consumeAll(socket, consumerTransport, remoteInfo.remoteVideoIds, remoteInfo.remoteAudioIds);
+};
 
-function consumeAll(transport, remoteVideoIds, remotAudioIds) {
+const consumeAll = (socket, transport, remoteVideoIds, remotAudioIds) => {
     console.log("----- consumeAll() -----");
     remoteVideoIds.forEach((rId) => {
-        consumeAdd(transport, rId, null, "video");
+        consumeAdd(socket, transport, rId, null, "video");
     });
     remotAudioIds.forEach((rId) => {
-        consumeAdd(transport, rId, null, "audio");
+        consumeAdd(socket, transport, rId, null, "audio");
     });
-}
+};
 
-async function consumeAdd(transport, remoteSocketId, prdId, trackKind) {
+const consumeAdd = async (socket, transport, remoteSocketId, prdId, trackKind) => {
     console.log("--start of consumeAdd -- kind=%s", trackKind);
     const {rtpCapabilities} = device;
-    //const data = await socket.request('consume', { rtpCapabilities });
-    const data = await sendRequest("consumeAdd", {
+    const data = await sendRequest(socket, "consumeAdd", {
         rtpCapabilities: rtpCapabilities,
         remoteId: remoteSocketId,
         kind: trackKind,
@@ -345,7 +325,7 @@ async function consumeAdd(transport, remoteSocketId, prdId, trackKind) {
 
     if (kind === "video") {
         console.log("--try resumeAdd --");
-        sendRequest("resumeAdd", {remoteId: remoteSocketId, kind: kind})
+        sendRequest(socket, "resumeAdd", {remoteId: remoteSocketId, kind: kind})
             .then(() => {
                 console.log("resumeAdd OK");
             })
@@ -353,19 +333,9 @@ async function consumeAdd(transport, remoteSocketId, prdId, trackKind) {
                 console.error("resumeAdd ERROR:", err);
             });
     }
-}
+};
 
-function getConsumer(id, kind) {
-    if (kind === "video") {
-        return videoConsumers[id];
-    } else if (kind === "audio") {
-        return audioConsumers[id];
-    } else {
-        console.warn("UNKNOWN consumer kind=" + kind);
-    }
-}
-
-function addConsumer(id, consumer, kind) {
+const addConsumer = (id, consumer, kind) => {
     if (kind === "video") {
         videoConsumers[id] = consumer;
         console.log("videoConsumers count=" + Object.keys(videoConsumers).length);
@@ -375,9 +345,9 @@ function addConsumer(id, consumer, kind) {
     } else {
         console.warn("UNKNOWN consumer kind=" + kind);
     }
-}
+};
 
-function removeConsumer(id, kind) {
+const removeConsumer = (id, kind) => {
     if (kind === "video") {
         delete videoConsumers[id];
         console.log("videoConsumers count=" + Object.keys(videoConsumers).length);
@@ -387,14 +357,14 @@ function removeConsumer(id, kind) {
     } else {
         console.warn("UNKNOWN consumer kind=" + kind);
     }
-}
+};
 
-function findRemoteVideo(id) {
+const findRemoteVideo = (id) => {
     let element = document.getElementById("remote_" + id);
     return element;
-}
+};
 
-function addRemoteTrack(id, track) {
+const addRemoteTrack = (id, track) => {
     let video = findRemoteVideo(id);
     if (!video) {
         video = addRemoteVideo(id);
@@ -416,9 +386,9 @@ function addRemoteTrack(id, track) {
         .catch((err) => {
             console.error("media ERROR:", err);
         });
-}
+};
 
-function addRemoteVideo(id) {
+const addRemoteVideo = (id) => {
     let element = document.createElement("video");
     document.getElementById("container").append(element);
     element.id = "remote_" + id;
@@ -429,9 +399,9 @@ function addRemoteVideo(id) {
     element.controls = 1;
     element.style = "border: solid black 1px;";
     return element;
-}
+};
 
-function playVideo(element, stream) {
+const playVideo = (element, stream) => {
     console.log(element);
     if (element.srcObject) {
         console.warn("element ALREADY playing, so ignore");
@@ -441,40 +411,19 @@ function playVideo(element, stream) {
     element.volume = 0;
     element.controls = 1;
     return element.play();
-}
-
-const getRtpCapabilities = async (socket) => {
-    const data = await socket.request("getRouterRtpCapabilities");
-    return loadDevice(data);
 };
 
-const createRoom = async (socket, roomId) => {
-    const createdRoom = await socket.request("createRoom", {room_id: roomId});
-    console.log(createdRoom);
-};
-
-const joinRoom = async (socket, roomId, name) => {
-    const joinedRoom = await socket.request("join", {room_id: roomId, name});
-    console.log(joinedRoom);
-
-    if (joinedRoom === true) {
-        return;
-    }
-};
-
-function sendRequest(type, data) {
+const sendRequest = (socket, type, data) => {
     return new Promise((resolve, reject) => {
-        if (socket) {
-            socket.emit(type, data, (err, response) => {
-                if (!err) {
-                    // Success response, so pass the mediasoup response to the local Room.
-                    resolve(response);
-                } else {
-                    reject(err);
-                }
-            });
-        }
+        socket.emit(type, data, (err, response) => {
+            if (!err) {
+                // Success response, so pass the mediasoup response to the local Room.
+                resolve(response);
+            } else {
+                reject(err);
+            }
+        });
     });
-}
+};
 
-export {joinRoom, getRtpCapabilities, createRoom, subscribe, publish, loadDevice, startMedia, sendRequest};
+export {publish, startMedia, connectSocket};
