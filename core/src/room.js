@@ -1,171 +1,207 @@
-import config from "../config.js";
-
 export class Room {
-    constructor(room_id, worker, io) {
-        this.id = room_id;
-        const mediaCodecs = config.mediasoup.router.mediaCodecs;
-        worker
-            .createRouter({
-                mediaCodecs,
-            })
-            .then(
-                function (router) {
-                    this.router = router;
-                }.bind(this),
-            );
+    constructor(name) {
+        this.name = name;
+        this.producerTransports = {};
+        this.videoProducers = {};
+        this.audioProducers = {};
 
-        this.peers = new Map();
-        this.io = io;
+        this.consumerTransports = {};
+        this.videoConsumerSets = {};
+        this.audioConsumerSets = {};
+
+        this.router = null;
     }
 
-    addPeer(peer) {
-        if (this.peers.has(peer.id)) {
-            console.log("exist user");
-            return true;
+    getProducerTrasnport(id) {
+        return this.producerTransports[id];
+    }
+
+    addProducerTrasport(id, transport) {
+        this.producerTransports[id] = transport;
+        console.log("room=%s producerTransports count=%d", this.name, Object.keys(this.producerTransports).length);
+    }
+
+    removeProducerTransport(id) {
+        delete this.producerTransports[id];
+        console.log("room=%s producerTransports count=%d", this.name, Object.keys(this.producerTransports).length);
+    }
+
+    getProducer(id, kind) {
+        if (kind === "video") {
+            return this.videoProducers[id];
+        } else if (kind === "audio") {
+            return this.audioProducers[id];
+        } else {
+            console.warn("UNKNOWN producer kind=" + kind);
         }
-        this.peers.set(peer.id, peer);
-        console.log("Peer added ...", peer.id);
     }
 
-    getProducerListForPeer() {
-        let producerList = [];
-        this.peers.forEach((peer) => {
-            peer.producers.forEach((producer) => {
-                producerList.push({
-                    producer_id: producer.id,
-                });
-            });
-        });
-        return producerList;
-    }
-
-    getRtpCapabilities() {
-        return this.router.rtpCapabilities;
-    }
-
-    async createWebRtcTransport(socket_id) {
-        const {maxIncomingBitrate, initialAvailableOutgoingBitrate} = config.mediasoup.webRtcTransport;
-
-        const transport = await this.router.createWebRtcTransport({
-            listenIps: config.mediasoup.webRtcTransport.listenIps,
-            enableUdp: true,
-            enableTcp: true,
-            preferUdp: true,
-            initialAvailableOutgoingBitrate,
-        });
-        if (maxIncomingBitrate) {
-            try {
-                await transport.setMaxIncomingBitrate(maxIncomingBitrate);
-            } catch (error) {}
-        }
-
-        transport.on(
-            "dtlsstatechange",
-            function (dtlsState) {
-                if (dtlsState === "closed") {
-                    console.log("---transport close--- " + this.peers.get(socket_id).name + " closed");
-                    transport.close();
+    getRemoteIds(clientId, kind) {
+        let remoteIds = [];
+        if (kind === "video") {
+            for (const key in this.videoProducers) {
+                if (key !== clientId) {
+                    remoteIds.push(key);
                 }
-            }.bind(this),
-        );
-
-        transport.on("close", () => {
-            console.log("---transport close--- " + this.peers.get(socket_id).name + " closed");
-        });
-        console.log("---adding transport---", transport.id);
-        this.peers.get(socket_id).addTransport(transport);
-        return {
-            params: {
-                id: transport.id,
-                iceParameters: transport.iceParameters,
-                iceCandidates: transport.iceCandidates,
-                dtlsParameters: transport.dtlsParameters,
-            },
-        };
-    }
-
-    async connectPeerTransport(socket_id, transport_id, dtlsParameters) {
-        if (!this.peers.has(socket_id)) return;
-        await this.peers.get(socket_id).connectTransport(transport_id, dtlsParameters);
-    }
-
-    async produce(socket_id, producerTransportId, rtpParameters, kind) {
-        // handle undefined errors
-
-        let producer = await this.peers.get(socket_id).createProducer(producerTransportId, rtpParameters, kind);
-
-        this.broadCast(socket_id, "newProducers", [
-            {
-                producer_id: producer.id,
-                producer_socket_id: socket_id,
-            },
-        ]);
-
-        return producer.id;
-    }
-
-    async consume(socket_id, consumer_transport_id, producer_id, rtpCapabilities) {
-        // handle nulls
-        if (
-            !this.router.canConsume({
-                producerId: producer_id,
-                rtpCapabilities,
-            })
-        ) {
-            console.error("can not consume");
-            return;
+            }
+        } else if (kind === "audio") {
+            for (const key in this.audioProducers) {
+                if (key !== clientId) {
+                    remoteIds.push(key);
+                }
+            }
         }
-
-        let {consumer, params} = await this.peers
-            .get(socket_id)
-            .createConsumer(consumer_transport_id, producer_id, rtpCapabilities);
-
-        consumer.on(
-            "producerclose",
-            function () {
-                console.log(
-                    `---consumer closed--- due to producerclose event  name:${
-                        this.peers.get(socket_id).name
-                    } consumer_id: ${consumer.id}`,
-                );
-                this.peers.get(socket_id).removeConsumer(consumer.id);
-                // tell client consumer is dead
-                this.io.to(socket_id).emit("consumerClosed", {
-                    consumer_id: consumer.id,
-                });
-            }.bind(this),
-        );
-
-        return params;
+        return remoteIds;
     }
 
-    async removePeer(socket_id) {
-        this.peers.get(socket_id).close();
-        this.peers.delete(socket_id);
-    }
-
-    closeProducer(socket_id, producer_id) {
-        this.peers.get(socket_id).closeProducer(producer_id);
-    }
-
-    broadCast(socket_id, name, data) {
-        for (let otherID of Array.from(this.peers.keys()).filter((id) => id !== socket_id)) {
-            this.send(otherID, name, data);
+    addProducer(id, producer, kind) {
+        if (kind === "video") {
+            this.videoProducers[id] = producer;
+            console.log("room=%s videoProducers count=%d", this.name, Object.keys(this.videoProducers).length);
+        } else if (kind === "audio") {
+            this.audioProducers[id] = producer;
+            console.log("room=%s videoProducers count=%d", this.name, Object.keys(this.audioProducers).length);
+        } else {
+            console.warn("UNKNOWN producer kind=" + kind);
         }
     }
 
-    send(socket_id, name, data) {
-        this.io.broadcast.emit(data);
+    removeProducer(id, kind) {
+        if (kind === "video") {
+            delete this.videoProducers[id];
+            console.log("videoProducers count=" + Object.keys(this.videoProducers).length);
+        } else if (kind === "audio") {
+            delete this.audioProducers[id];
+            console.log("audioProducers count=" + Object.keys(this.audioProducers).length);
+        } else {
+            console.warn("UNKNOWN producer kind=" + kind);
+        }
     }
 
-    getPeers() {
-        return this.peers;
+    getConsumerTrasnport(id) {
+        return this.consumerTransports[id];
     }
 
-    toJson() {
-        return {
-            id: this.id,
-            peers: JSON.stringify([...this.peers]),
-        };
+    addConsumerTrasport(id, transport) {
+        this.consumerTransports[id] = transport;
+        console.log("room=%s add consumerTransports count=%d", this.name, Object.keys(this.consumerTransports).length);
+    }
+
+    removeConsumerTransport(id) {
+        delete this.consumerTransports[id];
+        console.log(
+            "room=%s remove consumerTransports count=%d",
+            this.name,
+            Object.keys(this.consumerTransports).length,
+        );
+    }
+
+    getConsumerSet(localId, kind) {
+        if (kind === "video") {
+            return this.videoConsumerSets[localId];
+        } else if (kind === "audio") {
+            return this.audioConsumerSets[localId];
+        } else {
+            console.warn("WARN: getConsumerSet() UNKNWON kind=%s", kind);
+        }
+    }
+
+    addConsumerSet(localId, set, kind) {
+        if (kind === "video") {
+            this.videoConsumerSets[localId] = set;
+        } else if (kind === "audio") {
+            this.audioConsumerSets[localId] = set;
+        } else {
+            console.warn("WARN: addConsumerSet() UNKNWON kind=%s", kind);
+        }
+    }
+
+    removeConsumerSetDeep(localId) {
+        const videoSet = this.getConsumerSet(localId, "video");
+        delete this.videoConsumerSets[localId];
+        if (videoSet) {
+            for (const key in videoSet) {
+                const consumer = videoSet[key];
+                consumer.close();
+                delete videoSet[key];
+            }
+
+            console.log(
+                "room=%s removeConsumerSetDeep video consumers count=%d",
+                this.name,
+                Object.keys(videoSet).length,
+            );
+        }
+
+        const audioSet = this.getConsumerSet(localId, "audio");
+        delete this.audioConsumerSets[localId];
+        if (audioSet) {
+            for (const key in audioSet) {
+                const consumer = audioSet[key];
+                consumer.close();
+                delete audioSet[key];
+            }
+
+            console.log(
+                "room=%s removeConsumerSetDeep audio consumers count=%d",
+                this.name,
+                Object.keys(audioSet).length,
+            );
+        }
+    }
+
+    getConsumer(localId, remoteId, kind) {
+        const set = this.getConsumerSet(localId, kind);
+        if (set) {
+            return set[remoteId];
+        } else {
+            return null;
+        }
+    }
+
+    addConsumer(localId, remoteId, consumer, kind) {
+        const set = this.getConsumerSet(localId, kind);
+        if (set) {
+            set[remoteId] = consumer;
+            console.log("room=%s consumers kind=%s count=%d", this.name, kind, Object.keys(set).length);
+        } else {
+            console.log("room=%s new set for kind=%s, localId=%s", this.name, kind, localId);
+            const newSet = {};
+            newSet[remoteId] = consumer;
+            this.addConsumerSet(localId, newSet, kind);
+            console.log("room=%s consumers kind=%s count=%d", this.name, kind, Object.keys(newSet).length);
+        }
+    }
+
+    removeConsumer(localId, remoteId, kind) {
+        const set = this.getConsumerSet(localId, kind);
+        if (set) {
+            delete set[remoteId];
+            console.log("room=%s consumers kind=%s count=%d", this.name, kind, Object.keys(set).length);
+        } else {
+            console.log("NO set for room=%s kind=%s, localId=%s", this.name, kind, localId);
+        }
+    }
+
+    // --- static methtod ---
+    static staticInit() {
+        rooms = {};
+    }
+
+    static addRoom(room, name) {
+        Room.rooms[name] = room;
+        console.log("static addRoom. name=%s", room.name);
+        //console.log('static addRoom. name=%s, rooms:%O', room.name, room);
+    }
+
+    static getRoom(name) {
+        return Room.rooms[name];
+    }
+
+    static removeRoom(name) {
+        delete Room.rooms[name];
     }
 }
+
+// -- static member --
+Room.rooms = {};
