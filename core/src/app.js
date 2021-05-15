@@ -9,32 +9,7 @@ import mediasoup from "mediasoup";
 import * as socketIO from "socket.io";
 import mediasoupOptions from "../config.js";
 import {Room} from "./room.js";
-import {
-    setupRoom,
-    getProducer,
-    removeProducer,
-    removeProducerTransport,
-    getProducerTrasnport,
-    addProducer,
-    removeConsumerSetDeep,
-    removeConsumerTransport,
-    getConsumerTrasnport,
-    getRemoteIds,
-    getId,
-    createConsumer,
-    addConsumer,
-    getConsumer,
-    cleanUpPeer,
-    addProducerTrasport,
-    removeConsumer,
-    addConsumerTrasport,
-    createTransport,
-    sendReject,
-    sendBack,
-    getRoomName,
-    setRoomName,
-    sendResponse,
-} from "./helper.js";
+import {SocketHelper} from "./socket-helper.js";
 
 let webServer;
 let socketServer;
@@ -66,26 +41,10 @@ async function runExpressApp() {
 }
 
 async function runWebServer() {
-    const {sslKey, sslCrt} = mediasoupOptions;
-    const sslKeyPath = `${process.cwd()}${sslKey}`;
-    const sslCrtPath = `${process.cwd()}${sslCrt}`;
-    /*
-    if (!fs.existsSync(sslKeyPath) || !fs.existsSync(sslCrtPath)) {
-        console.error("SSL files are not found. check your mediasoupOptions.js file");
-        process.exit(0);
-    }*/
-
     /**
      * @TODO SSL, CORS problem
      */
-    /*
-    const tls = {
-        cert: fs.readFileSync(sslCrtPath, "utf-8"),
-        key: fs.readFileSync(sslKeyPath, "utf-8"),
-        requestCert: false,
-        rejectUnauthorized: false,
-    };
-*/
+
     try {
         webServer = http.createServer(expressApp);
     } catch (e) {
@@ -113,22 +72,22 @@ async function runSocketServer() {
         path: "/server",
         log: true,
         cors: {
-            origin: "http://localhost:3002",
+            origin: process.env.FRONTEND_URL,
         },
     });
 
     socketServer.on("connection", (socket) => {
         socket.on("disconnect", function () {
-            const roomName = getRoomName(socket);
+            const roomName = SocketHelper.getRoomName(socket);
 
             // close user connection
-            cleanUpPeer(roomName, socket);
+            SocketHelper.cleanUpPeer(roomName, socket);
 
             // --- socket.io room ---
             socket.leave(roomName);
         });
 
-        localId = getId(socket);
+        localId = socket.id;
 
         socket.on("error", function (err) {
             console.error("socket ERROR:", err);
@@ -142,9 +101,9 @@ async function runSocketServer() {
 
             if (router) {
                 //console.log('getRouterRtpCapabilities: ', router.rtpCapabilities);
-                sendResponse(router.rtpCapabilities, callback);
+                SocketHelper.sendResponse(router.rtpCapabilities, callback);
             } else {
-                sendReject({text: "ERROR- router NOT READY"}, callback);
+                SocketHelper.sendReject({text: "ERROR- router NOT READY"}, callback);
             }
         });
 
@@ -156,62 +115,62 @@ async function runSocketServer() {
                 console.log("--- use exist room. roomId=" + roomId);
             } else {
                 console.log("--- create new room. roomId=" + roomId);
-                const room = await setupRoom(worker, roomId);
+                await SocketHelper.setupRoom(worker, roomId);
             }
 
             // --- socket.io room ---
             socket.join(roomId);
-            setRoomName(socket, roomId);
+            SocketHelper.setRoomName(socket, roomId);
         });
 
         // --- producer ----
         socket.on("createProducerTransport", async (data, callback) => {
-            const roomName = getRoomName(socket);
+            const roomName = SocketHelper.getRoomName(socket);
 
             console.log("-- createProducerTransport ---room=%s", roomName);
-            const {transport, params} = await createTransport(roomName);
-            addProducerTrasport(roomName, getId(socket), transport);
+            const {transport, params} = await SocketHelper.createTransport(roomName);
+            SocketHelper.addProducerTransport(roomName, socket.id, transport);
             transport.observer.on("close", () => {
-                const id = getId(socket);
-                const videoProducer = getProducer(roomName, id, "video");
+                const id = socket.id;
+                const videoProducer = SocketHelper.getProducer(roomName, id, "video");
                 if (videoProducer) {
                     videoProducer.close();
-                    removeProducer(roomName, id, "video");
+                    SocketHelper.removeProducer(roomName, id, "video");
                 }
-                const audioProducer = getProducer(roomName, id, "audio");
+                const audioProducer = SocketHelper.getProducer(roomName, id, "audio");
                 if (audioProducer) {
                     audioProducer.close();
-                    removeProducer(roomName, id, "audio");
+                    SocketHelper.removeProducer(roomName, id, "audio");
                 }
-                removeProducerTransport(roomName, id);
+                SocketHelper.removeProducerTransport(roomName, id);
             });
             //console.log('-- createProducerTransport params:', params);
-            sendResponse(params, callback);
+            SocketHelper.sendResponse(params, callback);
         });
 
         socket.on("connectProducerTransport", async (data, callback) => {
-            const roomName = getRoomName(socket);
-            const transport = getProducerTrasnport(roomName, getId(socket));
+            const roomName = SocketHelper.getRoomName(socket);
+            const transport = SocketHelper.getProducerTransport(roomName, socket.id);
             await transport.connect({dtlsParameters: data.dtlsParameters});
-            sendResponse({}, callback);
+            SocketHelper.sendResponse({}, callback);
         });
 
         socket.on("produce", async (data, callback) => {
-            const roomName = getRoomName(socket);
+            const roomName = SocketHelper.getRoomName(socket);
             const {kind, rtpParameters} = data;
             console.log("-- produce --- kind=" + kind);
-            const id = getId(socket);
-            const transport = getProducerTrasnport(roomName, id);
+            const id = socket.id;
+            const transport = SocketHelper.getProducerTransport(roomName, id);
             if (!transport) {
                 console.error("transport NOT EXIST for id=" + id);
                 return;
             }
             const producer = await transport.produce({kind, rtpParameters});
-            addProducer(roomName, id, producer, kind);
+            SocketHelper.addProducer(roomName, id, producer, kind);
             producer.observer.on("close", () => {
                 console.log("producer closed --- kind=" + kind);
             });
-            sendResponse({id: producer.id}, callback);
+            SocketHelper.sendResponse({id: producer.id}, callback);
 
             // inform clients about new producer
 
@@ -228,29 +187,29 @@ async function runSocketServer() {
 
         // --- consumer ----
         socket.on("createConsumerTransport", async (data, callback) => {
-            const roomName = getRoomName(socket);
-            console.log("-- createConsumerTransport -- id=" + getId(socket));
+            const roomName = SocketHelper.getRoomName(socket);
+            console.log("-- createConsumerTransport -- id=" + socket.id);
             const {transport, params} = await createTransport(roomName);
-            addConsumerTrasport(roomName, getId(socket), transport);
+            SocketHelper.addConsumerTransport(roomName, socket.id, transport);
             transport.observer.on("close", () => {
-                const localId = getId(socket);
-                removeConsumerSetDeep(roomName, localId);
-                removeConsumerTransport(roomName, lid);
+                const localId = socket.id;
+                SocketHelper.removeConsumerSetDeep(roomName, localId);
+                SocketHelper.removeConsumerTransport(roomName, lid);
             });
-            //console.log('-- createTransport params:', params);
-            sendResponse(params, callback);
+
+            SocketHelper.sendResponse(params, callback);
         });
 
         socket.on("connectConsumerTransport", async (data, callback) => {
-            const roomName = getRoomName(socket);
-            console.log("-- connectConsumerTransport -- id=" + getId(socket));
-            let transport = getConsumerTrasnport(roomName, getId(socket));
+            const roomName = SocketHelper.getRoomName(socket);
+            console.log("-- connectConsumerTransport -- id=" + socket.id);
+            let transport = SocketHelper.getConsumerTransport(roomName, socket.id);
             if (!transport) {
-                console.error("transport NOT EXIST for id=" + getId(socket));
+                console.error("transport NOT EXIST for id=" + socket.id);
                 return;
             }
             await transport.connect({dtlsParameters: data.dtlsParameters});
-            sendResponse({}, callback);
+            SocketHelper.sendResponse({}, callback);
         });
 
         socket.on("consume", async (data, callback) => {
@@ -264,7 +223,7 @@ async function runSocketServer() {
         });
 
         socket.on("getCurrentProducers", async (data, callback) => {
-            const roomName = getRoomName(socket);
+            const roomName = SocketHelper.getRoomName(socket);
             const clientId = data.localId;
             console.log("-- getCurrentProducers for Id=" + clientId);
 
@@ -273,16 +232,16 @@ async function runSocketServer() {
             const remoteAudioIds = getRemoteIds(roomName, clientId, "audio");
             console.log("-- remoteAudioIds:", remoteAudioIds);
 
-            sendResponse({remoteVideoIds: remoteVideoIds, remoteAudioIds: remoteAudioIds}, callback);
+            SocketHelper.sendResponse({remoteVideoIds: remoteVideoIds, remoteAudioIds: remoteAudioIds}, callback);
         });
 
         socket.on("consumeAdd", async (data, callback) => {
-            const roomName = getRoomName(socket);
-            const localId = getId(socket);
+            const roomName = SocketHelper.getRoomName(socket);
+            const localId = socket.id;
             const kind = data.kind;
             console.log("-- consumeAdd -- localId=%s kind=%s", localId, kind);
 
-            let transport = getConsumerTrasnport(roomName, localId);
+            let transport = SocketHelper.getConsumerTransport(roomName, localId);
             if (!transport) {
                 console.error("transport NOT EXIST for id=" + localId);
                 return;
@@ -290,14 +249,19 @@ async function runSocketServer() {
             const rtpCapabilities = data.rtpCapabilities;
             const remoteId = data.remoteId;
             console.log("-- consumeAdd - localId=" + localId + " remoteId=" + remoteId + " kind=" + kind);
-            const producer = getProducer(roomName, remoteId, kind);
+            const producer = SocketHelper.getProducer(roomName, remoteId, kind);
             if (!producer) {
                 console.error("producer NOT EXIST for remoteId=%s kind=%s", remoteId, kind);
                 return;
             }
-            const {consumer, params} = await createConsumer(roomName, transport, producer, rtpCapabilities); // producer must exist before consume
+            const {consumer, params} = await SocketHelper.createConsumer(
+                roomName,
+                transport,
+                producer,
+                rtpCapabilities,
+            );
             //subscribeConsumer = consumer;
-            addConsumer(roomName, localId, remoteId, consumer, kind); // TODO: MUST comination of  local/remote id
+            SocketHelper.addConsumer(roomName, localId, remoteId, consumer, kind);
             console.log("addConsumer localId=%s, remoteId=%s, kind=%s", localId, remoteId, kind);
             consumer.observer.on("close", () => {
                 console.log("consumer closed ---");
@@ -305,34 +269,34 @@ async function runSocketServer() {
             consumer.on("producerclose", () => {
                 console.log("consumer -- on.producerclose");
                 consumer.close();
-                removeConsumer(roomName, localId, remoteId, kind);
+                SocketHelper.removeConsumer(roomName, localId, remoteId, kind);
 
                 // -- notify to client ---
                 socket.emit("producerClosed", {localId: localId, remoteId: remoteId, kind: kind});
             });
 
             console.log("-- consumer ready ---");
-            sendResponse(params, callback);
+            SocketHelper.sendResponse(params, callback);
         });
 
         socket.on("resumeAdd", async (data, callback) => {
-            const roomName = getRoomName(socket);
-            const localId = getId(socket);
+            const roomName = SocketHelper.getRoomName(socket);
+            const localId = socket.id;
             const remoteId = data.remoteId;
             const kind = data.kind;
             console.log("-- resumeAdd localId=%s remoteId=%s kind=%s", localId, remoteId, kind);
-            let consumer = getConsumer(roomName, localId, remoteId, kind);
+            let consumer = SocketHelper.getConsumer(roomName, localId, remoteId, kind);
             if (!consumer) {
                 console.error("consumer NOT EXIST for remoteId=" + remoteId);
                 return;
             }
             await consumer.resume();
-            sendResponse({}, callback);
+            SocketHelper.sendResponse({}, callback);
         });
 
         // ---- sendback welcome message with on connected ---
-        const newId = getId(socket);
-        sendBack(socket, {type: "welcome", id: newId});
+        const newId = socket.id;
+        SocketHelper.sendBack(socket, {type: "welcome", id: newId});
     });
 }
 
@@ -366,10 +330,13 @@ const runMediasoupWorker = async () => {
         workers.push(worker);
     }
 
-    defaultRoom = await setupRoom(worker, "_default_room");
+    defaultRoom = await SocketHelper.setupRoom(worker, "_default_room");
     console.log("-- mediasoup worker start. -- room:", defaultRoom.name);
 };
 
+/**
+ * Application bootstrap.
+ */
 (async () => {
     try {
         await runExpressApp();

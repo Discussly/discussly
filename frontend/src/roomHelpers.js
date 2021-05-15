@@ -26,8 +26,6 @@ const connectSocket = (connectedSocket) => {
 
     const socket = io.connect(serverUrl, opts);
 
-    console.log(socket);
-
     socket.on("connect", (evt) => {
         console.log("socket.io connected()");
     });
@@ -60,7 +58,6 @@ const connectSocket = (connectedSocket) => {
             console.log("--try consumeAdd remoteId=" + remoteId + ", prdId=" + prdId + ", kind=" + kind);
             consumeAdd(socket, consumerTransport, remoteId, prdId, kind);
         } else if (kind === "audio") {
-            //console.warn('-- audio NOT SUPPORTED YET. skip remoteId=' + remoteId + ', prdId=' + prdId + ', kind=' + kind);
             console.log("--try consumeAdd remoteId=" + remoteId + ", prdId=" + prdId + ", kind=" + kind);
             consumeAdd(socket, consumerTransport, remoteId, prdId, kind);
         }
@@ -256,7 +253,6 @@ const consumeCurrentProducers = async (socket, clientId) => {
         console.error("getCurrentProducers ERROR:", err);
         return;
     });
-    //console.log('remoteInfo.producerIds:', remoteInfo.producerIds);
     console.log("remoteInfo.remoteVideoIds:", remoteInfo.remoteVideoIds);
     console.log("remoteInfo.remoteAudioIds:", remoteInfo.remoteAudioIds);
     consumeAll(socket, consumerTransport, remoteInfo.remoteVideoIds, remoteInfo.remoteAudioIds);
@@ -275,6 +271,7 @@ const consumeAll = (socket, transport, remoteVideoIds, remotAudioIds) => {
 const consumeAdd = async (socket, transport, remoteSocketId, prdId, trackKind) => {
     console.log("--start of consumeAdd -- kind=%s", trackKind);
     const {rtpCapabilities} = device;
+
     const data = await sendRequest(socket, "consumeAdd", {
         rtpCapabilities: rtpCapabilities,
         remoteId: remoteSocketId,
@@ -282,7 +279,9 @@ const consumeAdd = async (socket, transport, remoteSocketId, prdId, trackKind) =
     }).catch((err) => {
         console.error("consumeAdd ERROR:", err);
     });
+
     const {producerId, id, kind, rtpParameters} = data;
+
     if (prdId && prdId !== producerId) {
         console.warn("producerID NOT MATCH");
     }
@@ -295,17 +294,12 @@ const consumeAdd = async (socket, transport, remoteSocketId, prdId, trackKind) =
         rtpParameters,
         codecOptions,
     });
-    //const stream = new MediaStream();
-    //stream.addTrack(consumer.track);
 
     addRemoteTrack(remoteSocketId, consumer.track);
     addConsumer(remoteSocketId, consumer, kind);
     consumer.remoteId = remoteSocketId;
     consumer.on("transportclose", () => {
         console.log("--consumer transport closed. remoteId=" + consumer.remoteId);
-        //consumer.close();
-        //removeConsumer(remoteId);
-        //removeRemoteVideo(consumer.remoteId);
     });
     consumer.on("producerclose", () => {
         console.log("--consumer producer closed. remoteId=" + consumer.remoteId);
@@ -315,13 +309,9 @@ const consumeAdd = async (socket, transport, remoteSocketId, prdId, trackKind) =
     });
     consumer.on("trackended", () => {
         console.log("--consumer trackended. remoteId=" + consumer.remoteId);
-        //consumer.close();
-        //removeConsumer(remoteId);
-        //removeRemoteVideo(consumer.remoteId);
     });
 
     console.log("--end of consumeAdd");
-    //return stream;
 
     if (kind === "video") {
         console.log("--try resumeAdd --");
@@ -378,7 +368,6 @@ const addRemoteTrack = (id, track) => {
 
     const newStream = new MediaStream();
     newStream.addTrack(track);
-    console.log(newStream);
     playVideo(video, newStream)
         .then(() => {
             video.volume = 1.0;
@@ -426,4 +415,4 @@ const sendRequest = (socket, type, data) => {
     });
 };
 
-export {publish, startMedia, connectSocket};
+export {publish, startMedia};

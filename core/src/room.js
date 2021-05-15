@@ -1,22 +1,38 @@
+/**
+ * Room class holds router, producers, consumers, transports
+ */
 export class Room {
     constructor(name) {
         this.name = name;
         this.producerTransports = {};
         this.videoProducers = {};
         this.audioProducers = {};
-
         this.consumerTransports = {};
         this.videoConsumerSets = {};
         this.audioConsumerSets = {};
-
         this.router = null;
     }
 
-    getProducerTrasnport(id) {
+    static rooms = {};
+
+    static addRoom(room, name) {
+        Room.rooms[name] = room;
+        console.log("static addRoom. name=%s", room.name);
+    }
+
+    static getRoom(name) {
+        return Room.rooms[name];
+    }
+
+    static removeRoom(name) {
+        delete Room.rooms[name];
+    }
+
+    getProducerTransport(id) {
         return this.producerTransports[id];
     }
 
-    addProducerTrasport(id, transport) {
+    addProducerTransport(id, transport) {
         this.producerTransports[id] = transport;
         console.log("room=%s producerTransports count=%d", this.name, Object.keys(this.producerTransports).length);
     }
@@ -78,11 +94,11 @@ export class Room {
         }
     }
 
-    getConsumerTrasnport(id) {
+    getConsumerTransport(id) {
         return this.consumerTransports[id];
     }
 
-    addConsumerTrasport(id, transport) {
+    addConsumerTransport(id, transport) {
         this.consumerTransports[id] = transport;
         console.log("room=%s add consumerTransports count=%d", this.name, Object.keys(this.consumerTransports).length);
     }
@@ -182,26 +198,4 @@ export class Room {
             console.log("NO set for room=%s kind=%s, localId=%s", this.name, kind, localId);
         }
     }
-
-    // --- static methtod ---
-    static staticInit() {
-        rooms = {};
-    }
-
-    static addRoom(room, name) {
-        Room.rooms[name] = room;
-        console.log("static addRoom. name=%s", room.name);
-        //console.log('static addRoom. name=%s, rooms:%O', room.name, room);
-    }
-
-    static getRoom(name) {
-        return Room.rooms[name];
-    }
-
-    static removeRoom(name) {
-        delete Room.rooms[name];
-    }
 }
-
-// -- static member --
-Room.rooms = {};
