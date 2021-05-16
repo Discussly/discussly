@@ -77,18 +77,17 @@ async function runSocketServer() {
     });
 
     socketServer.on("connection", (socket) => {
+        localId = socket.id;
+
+        const existingRooms = SocketHelper.getExistingRooms();
+        socket.emit("existingRooms", {existingRooms});
+        /*
         socket.on("disconnect", function () {
-            const roomName = SocketHelper.getRoomName(socket);
-
-            // close user connection
-            SocketHelper.cleanUpPeer(roomName, socket);
-
+            SocketHelper.cleanUpPeer(socket.roomname, socket);
             // --- socket.io room ---
             socket.leave(roomName);
         });
-
-        localId = socket.id;
-
+*/
         socket.on("error", function (err) {
             console.error("socket ERROR:", err);
         });
@@ -97,10 +96,11 @@ async function runSocketServer() {
         });
 
         socket.on("getRouterRtpCapabilities", (data, callback) => {
-            const router = defaultRoom.router;
+            const {roomId} = data;
+            const joinedRoom = Room.getRoom(roomId);
+            const router = joinedRoom.router;
 
             if (router) {
-                //console.log('getRouterRtpCapabilities: ', router.rtpCapabilities);
                 SocketHelper.sendResponse(router.rtpCapabilities, callback);
             } else {
                 SocketHelper.sendReject({text: "ERROR- router NOT READY"}, callback);
@@ -108,7 +108,7 @@ async function runSocketServer() {
         });
 
         // --- setup room ---
-        socket.on("prepare_room", async (data) => {
+        socket.on("prepareRoom", async (data, callback) => {
             const roomId = data.roomId;
             const existRoom = Room.getRoom(roomId);
             if (existRoom) {
@@ -118,9 +118,16 @@ async function runSocketServer() {
                 await SocketHelper.setupRoom(worker, roomId);
             }
 
-            // --- socket.io room ---
+            SocketHelper.sendResponse(roomId, callback);
+        });
+
+        socket.on("joinRoom", async (data, callback) => {
+            const roomId = data.roomId;
+            const existRoom = Room.getRoom(roomId);
+            console.log("--- use exist room. roomId=" + roomId);
             socket.join(roomId);
             SocketHelper.setRoomName(socket, roomId);
+            SocketHelper.sendResponse(roomId, callback);
         });
 
         // --- producer ----
@@ -144,7 +151,7 @@ async function runSocketServer() {
                 }
                 SocketHelper.removeProducerTransport(roomName, id);
             });
-            //console.log('-- createProducerTransport params:', params);
+
             SocketHelper.sendResponse(params, callback);
         });
 
@@ -189,7 +196,7 @@ async function runSocketServer() {
         socket.on("createConsumerTransport", async (data, callback) => {
             const roomName = SocketHelper.getRoomName(socket);
             console.log("-- createConsumerTransport -- id=" + socket.id);
-            const {transport, params} = await createTransport(roomName);
+            const {transport, params} = await SocketHelper.createTransport(roomName);
             SocketHelper.addConsumerTransport(roomName, socket.id, transport);
             transport.observer.on("close", () => {
                 const localId = socket.id;
@@ -227,9 +234,9 @@ async function runSocketServer() {
             const clientId = data.localId;
             console.log("-- getCurrentProducers for Id=" + clientId);
 
-            const remoteVideoIds = getRemoteIds(roomName, clientId, "video");
+            const remoteVideoIds = SocketHelper.getRemoteIds(roomName, clientId, "video");
             console.log("-- remoteVideoIds:", remoteVideoIds);
-            const remoteAudioIds = getRemoteIds(roomName, clientId, "audio");
+            const remoteAudioIds = SocketHelper.getRemoteIds(roomName, clientId, "audio");
             console.log("-- remoteAudioIds:", remoteAudioIds);
 
             SocketHelper.sendResponse({remoteVideoIds: remoteVideoIds, remoteAudioIds: remoteAudioIds}, callback);
@@ -329,9 +336,6 @@ const runMediasoupWorker = async () => {
         });
         workers.push(worker);
     }
-
-    defaultRoom = await SocketHelper.setupRoom(worker, "_default_room");
-    console.log("-- mediasoup worker start. -- room:", defaultRoom.name);
 };
 
 /**
@@ -344,6 +348,8 @@ const runMediasoupWorker = async () => {
         await runMediasoupWorker();
         worker = getMediasoupWorker();
         await runSocketServer();
+
+        await SocketHelper.setupRoom(worker, "default_room");
     } catch (err) {
         console.log(err);
     }

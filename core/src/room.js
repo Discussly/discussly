@@ -28,6 +28,11 @@ export class Room {
         delete Room.rooms[name];
     }
 
+    static getExistingRooms() {
+        const roomIds = Object.keys(Room.rooms);
+        return roomIds;
+    }
+
     getProducerTransport(id) {
         return this.producerTransports[id];
     }
