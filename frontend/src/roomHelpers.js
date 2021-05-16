@@ -2,6 +2,7 @@
 /* eslint-disable no-param-reassign */
 import {Device} from "mediasoup-client";
 const io = require("socket.io-client");
+import {v4 as uuidv4} from "uuid";
 
 const {REACT_APP_SERVER_HOST, REACT_APP_SERVER_PORT} = process.env;
 const serverUrl = `http://${REACT_APP_SERVER_HOST}:${REACT_APP_SERVER_PORT}`;
@@ -11,22 +12,14 @@ const opts = {
 };
 let device;
 let clientId;
-let localStream;
 let producerTransport;
 let consumerTransport;
 let videoConsumers = {};
 let audioConsumers = {};
+let joinedRoom;
 
-const connectSocket = (connectedSocket) => {
-    if (connectedSocket) {
-        connectedSocket.close();
-        connectedSocket = null;
-        clientId = null;
-    }
-
+const connectSocket = () => {
     const socket = io.connect(serverUrl, opts);
-
-    console.log(socket);
 
     socket.on("connect", (evt) => {
         console.log("socket.io connected()");
@@ -51,6 +44,7 @@ const connectSocket = (connectedSocket) => {
             console.error("UNKNOWN message from server:", message);
         }
     });
+
     socket.on("newProducer", (message) => {
         console.log("socket.io newProducer:", message);
         const remoteId = message.socketId;
@@ -60,7 +54,6 @@ const connectSocket = (connectedSocket) => {
             console.log("--try consumeAdd remoteId=" + remoteId + ", prdId=" + prdId + ", kind=" + kind);
             consumeAdd(socket, consumerTransport, remoteId, prdId, kind);
         } else if (kind === "audio") {
-            //console.warn('-- audio NOT SUPPORTED YET. skip remoteId=' + remoteId + ', prdId=' + prdId + ', kind=' + kind);
             console.log("--try consumeAdd remoteId=" + remoteId + ", prdId=" + prdId + ", kind=" + kind);
             consumeAdd(socket, consumerTransport, remoteId, prdId, kind);
         }
@@ -79,6 +72,13 @@ const connectSocket = (connectedSocket) => {
     return socket;
 };
 
+const createRoom = async (socket) => {
+    if (socket) {
+        const newRoomId = await sendRequest(socket, "prepareRoom", {roomId: uuidv4()});
+        return newRoomId;
+    }
+};
+
 const loadDevice = async (routerRtpCapabilities) => {
     try {
         device = new Device();
@@ -90,40 +90,35 @@ const loadDevice = async (routerRtpCapabilities) => {
     await device.load({routerRtpCapabilities});
 };
 
-const startMedia = () => {
+const startMedia = async (localStream) => {
     if (localStream) {
         console.warn("WARN: local media ALREADY started");
         return;
     }
-    const localVideo = document.getElementById("local_video");
 
-    navigator.mediaDevices
-        .getUserMedia({audio: true, video: true})
-        .then((stream) => {
-            localStream = stream;
-            playVideo(localVideo, localStream);
-        })
-        .catch((err) => {
-            console.error("media ERROR:", err);
-        });
-};
-
-const publish = async () => {
-    let socket;
     try {
-        socket = connectSocket();
-        console.log(socket);
+        const stream = await navigator.mediaDevices.getUserMedia({audio: true, video: true});
+        return stream;
     } catch (e) {
         console.error(e);
     }
+};
 
+const joinRoom = async (socket, selectedRoom) => {
+    // -- join room
+    const joinedRoom = await sendRequest(socket, "joinRoom", {roomId: selectedRoom});
+    console.log(`Joined room: ${joinedRoom}`);
+    return joinedRoom;
+};
+
+const publish = async (socket, localStream, joinedRoom) => {
     if (!localStream || !socket) {
         console.warn("WARN: local media or socket NOT READY");
         return;
     }
 
     // --- get capabilities --
-    const data = await sendRequest(socket, "getRouterRtpCapabilities", {});
+    const data = await sendRequest(socket, "getRouterRtpCapabilities", {roomId: joinedRoom});
     console.log("getRouterRtpCapabilities:", data);
     await loadDevice(data);
 
@@ -256,7 +251,6 @@ const consumeCurrentProducers = async (socket, clientId) => {
         console.error("getCurrentProducers ERROR:", err);
         return;
     });
-    //console.log('remoteInfo.producerIds:', remoteInfo.producerIds);
     console.log("remoteInfo.remoteVideoIds:", remoteInfo.remoteVideoIds);
     console.log("remoteInfo.remoteAudioIds:", remoteInfo.remoteAudioIds);
     consumeAll(socket, consumerTransport, remoteInfo.remoteVideoIds, remoteInfo.remoteAudioIds);
@@ -275,6 +269,7 @@ const consumeAll = (socket, transport, remoteVideoIds, remotAudioIds) => {
 const consumeAdd = async (socket, transport, remoteSocketId, prdId, trackKind) => {
     console.log("--start of consumeAdd -- kind=%s", trackKind);
     const {rtpCapabilities} = device;
+
     const data = await sendRequest(socket, "consumeAdd", {
         rtpCapabilities: rtpCapabilities,
         remoteId: remoteSocketId,
@@ -282,7 +277,9 @@ const consumeAdd = async (socket, transport, remoteSocketId, prdId, trackKind) =
     }).catch((err) => {
         console.error("consumeAdd ERROR:", err);
     });
+
     const {producerId, id, kind, rtpParameters} = data;
+
     if (prdId && prdId !== producerId) {
         console.warn("producerID NOT MATCH");
     }
@@ -295,17 +292,12 @@ const consumeAdd = async (socket, transport, remoteSocketId, prdId, trackKind) =
         rtpParameters,
         codecOptions,
     });
-    //const stream = new MediaStream();
-    //stream.addTrack(consumer.track);
 
     addRemoteTrack(remoteSocketId, consumer.track);
     addConsumer(remoteSocketId, consumer, kind);
     consumer.remoteId = remoteSocketId;
     consumer.on("transportclose", () => {
         console.log("--consumer transport closed. remoteId=" + consumer.remoteId);
-        //consumer.close();
-        //removeConsumer(remoteId);
-        //removeRemoteVideo(consumer.remoteId);
     });
     consumer.on("producerclose", () => {
         console.log("--consumer producer closed. remoteId=" + consumer.remoteId);
@@ -315,13 +307,9 @@ const consumeAdd = async (socket, transport, remoteSocketId, prdId, trackKind) =
     });
     consumer.on("trackended", () => {
         console.log("--consumer trackended. remoteId=" + consumer.remoteId);
-        //consumer.close();
-        //removeConsumer(remoteId);
-        //removeRemoteVideo(consumer.remoteId);
     });
 
     console.log("--end of consumeAdd");
-    //return stream;
 
     if (kind === "video") {
         console.log("--try resumeAdd --");
@@ -378,7 +366,6 @@ const addRemoteTrack = (id, track) => {
 
     const newStream = new MediaStream();
     newStream.addTrack(track);
-    console.log(newStream);
     playVideo(video, newStream)
         .then(() => {
             video.volume = 1.0;
@@ -426,4 +413,4 @@ const sendRequest = (socket, type, data) => {
     });
 };
 
-export {publish, startMedia, connectSocket};
+export {publish, startMedia, createRoom, connectSocket, joinRoom};
