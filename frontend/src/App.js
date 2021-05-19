@@ -1,6 +1,6 @@
 import "./App.css";
 
-import {Room} from "./Room";
+import {Room} from "./modules/room/Room";
 
 function App() {
     return (
