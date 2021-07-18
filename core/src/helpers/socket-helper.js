@@ -1,5 +1,5 @@
 import {Room} from "./room.js";
-import mediasoupOptions from "../config.js";
+import mediasoupOptions from "../../config.js";
 
 /**
  * SocketHelper is a helper class for calling room methods.

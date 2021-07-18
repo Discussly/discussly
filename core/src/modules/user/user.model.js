@@ -11,6 +11,10 @@ export const registerUserModel = (sequelize) => {
             field: "last_name",
             type: DataTypes.STRING,
         },
+        is_admin: {
+            field: "is_admin",
+            type: DataTypes.BOOLEAN,
+        },
     });
 
     User.sync({force: true}).then(function () {
