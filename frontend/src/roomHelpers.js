@@ -88,6 +88,7 @@ const loadDevice = async (routerRtpCapabilities) => {
         }
     }
     await device.load({routerRtpCapabilities});
+    console.log(device);
 };
 
 const startMedia = async (localStream) => {

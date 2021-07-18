@@ -5,11 +5,12 @@
 import express from "express";
 import http from "http";
 import path from "path";
-import mediasoup from "mediasoup";
+import * as mediasoup from "mediasoup";
 import * as socketIO from "socket.io";
 import mediasoupOptions from "../config.js";
 import {Room} from "./room.js";
 import {SocketHelper} from "./socket-helper.js";
+import {User} from "./models/index.js";
 
 let webServer;
 let socketServer;
