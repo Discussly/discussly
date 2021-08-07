@@ -1,6 +1,7 @@
+/* eslint-disable no-console */
 import {DataTypes} from "sequelize";
 
-export const registerUserModel = (sequelize) => {
+export const registerUser = (sequelize) => {
     const User = sequelize.define("User", {
         first_name: {
             type: DataTypes.STRING,
@@ -15,15 +16,6 @@ export const registerUserModel = (sequelize) => {
             field: "is_admin",
             type: DataTypes.BOOLEAN,
         },
-    });
-
-    User.sync({force: true}).then(function () {
-        // Table created
-        console.log("test");
-        User.create({
-            first_name: "John",
-            last_name: "Hancock",
-        });
     });
 
     return User;

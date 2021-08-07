@@ -31,19 +31,6 @@ const connectSocket = () => {
     socket.on("disconnect", (evt) => {
         console.log("socket.io disconnect:", evt);
     });
-    socket.on("message", (message) => {
-        console.log("socket.io message:", message);
-        if (message.type === "welcome") {
-            if (socket.id !== message.id) {
-                console.warn("WARN: something wrong with clientID", socket.io, message.id);
-            }
-
-            clientId = message.id;
-            console.log("connected to server. clientId=" + clientId);
-        } else {
-            console.error("UNKNOWN message from server:", message);
-        }
-    });
 
     socket.on("newProducer", (message) => {
         console.log("socket.io newProducer:", message);
@@ -112,7 +99,11 @@ const joinRoom = async (socket, selectedRoom) => {
     return joinedRoom;
 };
 
-const publish = async (socket, localStream, joinedRoom) => {
+const sendMessage = async (socket, message) => {
+    await sendRequest(socket, "send_message", {message});
+};
+
+const publish = async (socket, localStream, joinedRoom, clientId) => {
     if (!localStream || !socket) {
         console.warn("WARN: local media or socket NOT READY");
         return;
@@ -146,7 +137,7 @@ const publish = async (socket, localStream, joinedRoom) => {
             });
             callback({id});
             console.log("--produce requested, then subscribe ---");
-            subscribe(socket);
+            subscribe(socket, clientId);
         } catch (err) {
             errback(err);
         }
@@ -190,7 +181,7 @@ const publish = async (socket, localStream, joinedRoom) => {
     }
 };
 
-const subscribe = async (socket) => {
+const subscribe = async (socket, clientId) => {
     if (!socket) {
         await connectSocket().catch((err) => {
             console.error(err);
@@ -414,4 +405,4 @@ const sendRequest = (socket, type, data) => {
     });
 };
 
-export {publish, startMedia, createRoom, connectSocket, joinRoom};
+export {publish, startMedia, createRoom, connectSocket, joinRoom, sendMessage};

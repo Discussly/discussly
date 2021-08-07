@@ -11,6 +11,8 @@ import mediasoupOptions from "../config.js";
 import {SocketHelper} from "./helpers/socket-helper.js";
 import {addSocketEvents} from "./handlers/socket-events";
 import {router} from "./handlers/register-routes";
+import {SequelizeConnection} from "./handlers/connect-sequelize";
+import {registerJwtStrategy} from "./modules/auth/jwt.strategy";
 
 let webServer;
 let socketServer;
@@ -38,6 +40,11 @@ async function runExpressApp() {
 
         next();
     });
+
+    const sequelizeConnection = new SequelizeConnection();
+    await sequelizeConnection.registerModels();
+
+    registerJwtStrategy();
 }
 
 async function runWebServer() {
@@ -81,7 +88,7 @@ async function runSocketServer() {
         socket.emit("existingRooms", {existingRooms});
 
         // add socket events
-        addSocketEvents(socket);
+        addSocketEvents(socket, worker);
 
         // ---- sendback welcome message with on connected ---
         const newId = socket.id;
@@ -95,7 +102,9 @@ async function runSocketServer() {
 const getMediasoupWorker = () => {
     const worker = workers[nextMediasoupWorkerIdx];
 
-    if (++nextMediasoupWorkerIdx === workers.length) nextMediasoupWorkerIdx = 0;
+    if (++nextMediasoupWorkerIdx === workers.length) {
+        nextMediasoupWorkerIdx = 0;
+    }
 
     return worker;
 };

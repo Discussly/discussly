@@ -1,15 +1,17 @@
-import {registerUserService} from "./user.services";
+import * as UserService from "./user.services";
 
-const UserService = registerUserService();
+export const register = async (req, res) => {
+    const data = req.body;
+    const newUser = await UserService.register(data, res);
+    res.json({message: newUser});
+};
 
-export const getUserControllers = () => {
-    const register = async (req, res, next) => {
-        const data = req.body;
-        const newUser = await UserService.register(data, res);
-        res.json({message: newUser}); // dummy function for now
-    };
+export const login = async (req, res) => {
+    const data = req.body;
+    const token = await UserService.login(data, res);
+    res.json({token});
+};
 
-    return {
-        register,
-    };
+export const secret = async (req, res) => {
+    res.status(200).json({secret: "test"});
 };

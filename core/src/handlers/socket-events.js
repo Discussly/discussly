@@ -1,6 +1,7 @@
 import {SocketHelper} from "../helpers/socket-helper";
+import {Room} from "../helpers/room";
 
-export const addSocketEvents = (socket) => {
+export const addSocketEvents = (socket, worker) => {
     /*
         socket.on("disconnect", function () {
             SocketHelper.cleanUpPeer(socket.roomname, socket);
@@ -15,8 +16,14 @@ export const addSocketEvents = (socket) => {
         console.error("client connection error", err);
     });
 
+    socket.on("send_message", (data) => {
+        console.log(data);
+        socket.broadcast.emit("message", {type: "room_message", data});
+    });
+
     socket.on("getRouterRtpCapabilities", (data, callback) => {
         const {roomId} = data;
+        console.log(data);
         const joinedRoom = Room.getRoom(roomId);
         const router = joinedRoom.router;
 
@@ -43,7 +50,6 @@ export const addSocketEvents = (socket) => {
 
     socket.on("joinRoom", async (data, callback) => {
         const roomId = data.roomId;
-        const existRoom = Room.getRoom(roomId);
         console.log("--- use exist room. roomId=" + roomId);
         socket.join(roomId);
         SocketHelper.setRoomName(socket, roomId);
@@ -121,7 +127,7 @@ export const addSocketEvents = (socket) => {
         transport.observer.on("close", () => {
             const localId = socket.id;
             SocketHelper.removeConsumerSetDeep(roomName, localId);
-            SocketHelper.removeConsumerTransport(roomName, lid);
+            SocketHelper.removeConsumerTransport(roomName, localId);
         });
 
         SocketHelper.sendResponse(params, callback);
