@@ -7,7 +7,7 @@ import http from "http";
 import path from "path";
 import * as mediasoup from "mediasoup";
 import * as socketIO from "socket.io";
-import mediasoupOptions from "../config.js";
+import {mediasoupOptions} from "../config.js";
 import {SocketHelper} from "./helpers/socket-helper.js";
 import {addSocketEvents} from "./handlers/socket-events";
 import {router} from "./handlers/register-routes";
@@ -42,7 +42,7 @@ async function runExpressApp() {
     });
 
     const sequelizeConnection = new SequelizeConnection();
-    await sequelizeConnection.registerModels();
+   // await sequelizeConnection.registerModels();
 
     registerJwtStrategy();
 }

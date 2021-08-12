@@ -1,6 +1,6 @@
 import os from "os";
 
-export default {
+export const mediasoupOptions =  {
     // Worker settings
     numWorkers: Object.keys(os.cpus()).length,
     worker: {
