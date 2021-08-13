@@ -1,7 +1,7 @@
 /* eslint-disable no-undef */
-import React, {useContext, useState, useDebounce} from "react";
-import {publish, startMedia, createRoom, joinRoom, sendMessage} from "./roomHelpers";
-import {SocketContext} from "./context/socket.js";
+import React, {useContext, useState, useEffect} from "react";
+import {publish, startMedia, createRoom, joinRoom, sendMessage} from "../../services/room-helpers";
+import {SocketContext} from "../../context/socket.js";
 import {Formik, Form, Field, ErrorMessage} from "formik";
 import {ChatFeed, Message} from "react-chat-ui";
 import debounce from "lodash.debounce";
@@ -20,6 +20,10 @@ export function Room() {
         new Message({id: 0, message: "I'm you -- the blue bubble!"}), // Blue bubble
     ]);
     const [isTyping, setIsTyping] = useState(false);
+
+    useEffect(() => {
+        sendMessage(socket, {user: "a", is_typing: isTyping});
+    }, [isTyping]);
 
     socket.on("existingRooms", (message) => {
         setRooms(message.existingRooms);
@@ -123,7 +127,6 @@ export function Room() {
                 >
                     {({isSubmitting}) => (
                         <Form>
-                            <span className="user-typing">{isTyping && `a user is typing....`}</span>
                             <Field name="chat_message">
                                 {({
                                     field, // { name, value, onChange, onBlur }

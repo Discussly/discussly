@@ -1,15 +1,9 @@
-import {SequelizeConnection} from "../../handlers/connect-sequelize";
+import Database from "../../models/index";
 import {generateJwtToken} from "../auth/jwt.strategy";
-import Joi from "joi";
-
-const UserSchema = Joi.object().keys({
-    first_name: Joi.string().required(),
-    last_name: Joi.string().required(),
-});
+import {RegisterValidation, LoginValidation} from "./validations/index";
 
 export async function register(data, res) {
-    console.log(data);
-    const validationResult = UserSchema.validate(data);
+    const validationResult = RegisterValidation.validate(data);
 
     const {error} = validationResult;
     console.log(error);
@@ -20,15 +14,24 @@ export async function register(data, res) {
         });
     }
 
-    const newUser = await SequelizeConnection.userModel.create({...data});
-    console.log(newUser, data);
+    const newUser = await Database.User.create({...data});
     return newUser;
 }
 
 export async function login(data, res) {
     //Check If User Exists
-    console.log(data);
-    const foundUser = await SequelizeConnection.userModel.findOne({where: {first_name: data.first_name}});
+    const validationResult = LoginValidation.validate(data);
+
+    const {error} = validationResult;
+
+    if (error) {
+        res.status(422).json({
+            message: "Credentials are not valid !",
+            data,
+        });
+    }
+
+    const foundUser = await Database.User.findOne({where: {email: data.email}});
 
     console.log(foundUser);
 
@@ -37,5 +40,8 @@ export async function login(data, res) {
     }
 
     const token = generateJwtToken(foundUser);
-    return token;
+    return {
+        token,
+        user: foundUser,
+    };
 }

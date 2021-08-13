@@ -3,9 +3,8 @@
 import {Device} from "mediasoup-client";
 const io = require("socket.io-client");
 import {v4 as uuidv4} from "uuid";
+import {API_BASEURL} from "./api-config";
 
-const {REACT_APP_SERVER_HOST, REACT_APP_SERVER_PORT} = process.env;
-const serverUrl = `http://${REACT_APP_SERVER_HOST}:${REACT_APP_SERVER_PORT}`;
 const opts = {
     path: "/server",
     transports: ["websocket"],
@@ -19,7 +18,7 @@ let audioConsumers = {};
 let joinedRoom;
 
 const connectSocket = () => {
-    const socket = io.connect(serverUrl, opts);
+    const socket = io.connect(API_BASEURL, opts);
 
     socket.on("connect", (evt) => {
         console.log("socket.io connected()");

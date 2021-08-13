@@ -4,7 +4,7 @@ const JWTStrategy = passportJWT.Strategy;
 const ExtractJWT = passportJWT.ExtractJwt;
 const jwt = require("jsonwebtoken");
 
-import {SequelizeConnection} from "../../handlers/connect-sequelize";
+import {Database} from "../../models/index";
 
 export const registerJwtStrategy = () => {
     passport.use(
@@ -15,8 +15,7 @@ export const registerJwtStrategy = () => {
             },
             function (jwtPayload, done) {
                 console.log(jwtPayload);
-                return SequelizeConnection.userModel
-                    .findByPk(jwtPayload.sub)
+                return Database.User.findByPk(jwtPayload.sub)
                     .then((user) => {
                         return done(null, user);
                     })
