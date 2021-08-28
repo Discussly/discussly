@@ -4,7 +4,7 @@ import {publish, startMedia, createRoom, joinRoom, sendMessage} from "./roomHelp
 import {SocketContext} from "./context/socket.js";
 import {Formik, Form, Field, ErrorMessage} from "formik";
 import {ChatFeed, Message} from "react-chat-ui";
-import debounce from "lodash.debounce";
+import {debounce} from "lodash";
 
 export function Room() {
     const socket = useContext(SocketContext);
