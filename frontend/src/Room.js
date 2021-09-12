@@ -37,8 +37,10 @@ export function Room() {
         } else if (message.type === "room_message") {
             console.log(message);
             const existingMessages = [...messages];
-            const newMessage = message.data.message;
-            setMessages([...existingMessages, new Message({id: 1, message: newMessage})]);
+            const newMessage = message && message.chatMessage;
+            if (newMessage) {
+                setMessages([...existingMessages, new Message({id: 1, message: newMessage})]);
+            }
         } else {
             console.error("UNKNOWN message from server:", message);
         }
@@ -88,6 +90,7 @@ export function Room() {
                     onClick={async () => {
                         const newRoom = await createRoom(socket);
                         console.log(newRoom);
+                        setRooms([...rooms, newRoom]);
                     }}
                 >
                     Create a Room
@@ -118,7 +121,7 @@ export function Room() {
                         setSubmitting(false);
                         const existingMessages = [...messages];
                         setMessages([...existingMessages, new Message({id: 0, message: values.chat_message})]);
-                        await sendMessage(socket, values.chat_message);
+                        await sendMessage(socket, {chatMessage: values.chat_message, selectedRoom});
                     }}
                 >
                     {({isSubmitting}) => (

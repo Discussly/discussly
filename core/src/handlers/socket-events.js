@@ -18,7 +18,8 @@ export const addSocketEvents = (socket, worker) => {
 
     socket.on("send_message", (data) => {
         console.log(data);
-        socket.broadcast.emit("message", {type: "room_message", data});
+        const {selectedRoom, chatMessage} = data;
+        socket.to(selectedRoom).emit("message", {type: "room_message", chatMessage});
     });
 
     socket.on("getRouterRtpCapabilities", (data, callback) => {

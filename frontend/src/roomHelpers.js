@@ -99,8 +99,9 @@ const joinRoom = async (socket, selectedRoom) => {
     return joinedRoom;
 };
 
-const sendMessage = async (socket, message) => {
-    await sendRequest(socket, "send_message", {message});
+const sendMessage = async (socket, data) => {
+    const {chatMessage, selectedRoom} = data;
+    await sendRequest(socket, "send_message", {chatMessage, selectedRoom});
 };
 
 const publish = async (socket, localStream, joinedRoom, clientId) => {
