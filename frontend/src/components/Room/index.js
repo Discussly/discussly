@@ -126,11 +126,7 @@ export function Room() {
                         setSubmitting(false);
                         const existingMessages = [...messages];
                         setMessages([...existingMessages, new Message({id: 0, message: values.chat_message})]);
-<<<<<<< HEAD:frontend/src/components/Room/index.js
                         await sendMessage(socket, {text: values.chat_message, room: selectedRoom});
-=======
-                        await sendMessage(socket, {chatMessage: values.chat_message, selectedRoom});
->>>>>>> main:frontend/src/Room.js
                     }}
                 >
                     {({isSubmitting}) => (
