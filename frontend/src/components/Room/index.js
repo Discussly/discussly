@@ -1,7 +1,7 @@
 /* eslint-disable no-undef */
-import React, {useContext, useState, useDebounce} from "react";
-import {publish, startMedia, createRoom, joinRoom, sendMessage} from "./roomHelpers";
-import {SocketContext} from "./context/socket.js";
+import React, {useContext, useState, useEffect} from "react";
+import {publish, startMedia, createRoom, joinRoom, sendMessage, getExistingRooms} from "../../services/room-helpers";
+import {SocketContext} from "../../context/socket.js";
 import {Formik, Form, Field, ErrorMessage} from "formik";
 import {ChatFeed, Message} from "react-chat-ui";
 import {debounce} from "lodash";
@@ -21,9 +21,15 @@ export function Room() {
     ]);
     const [isTyping, setIsTyping] = useState(false);
 
-    socket.on("existingRooms", (message) => {
-        setRooms(message.existingRooms);
-    });
+    useEffect(() => {
+        if (selectedRoom) {
+            sendMessage(socket, {user: "a", is_typing: isTyping});
+        }
+    }, [isTyping, selectedRoom]);
+
+    useEffect(() => {
+        socket.emit("getExistingRooms");
+    }, []);
 
     socket.on("message", (message) => {
         console.log("socket.io message:", message);
@@ -31,16 +37,15 @@ export function Room() {
             if (socket.id !== message.id) {
                 console.warn("WARN: something wrong with clientID", socket.io, message.id);
             }
-
             setClientId(message.id);
             console.log("connected to server. clientId=" + message.id);
         } else if (message.type === "room_message") {
             console.log(message);
             const existingMessages = [...messages];
-            const newMessage = message && message.chatMessage;
-            if (newMessage) {
-                setMessages([...existingMessages, new Message({id: 1, message: newMessage})]);
-            }
+            const newMessage = message.text;
+            setMessages([...existingMessages, new Message({id: 1, message: newMessage})]);
+        } else if (message.type === "room_broadcast") {
+            setRooms([...rooms, ...message.text]);
         } else {
             console.error("UNKNOWN message from server:", message);
         }
@@ -121,12 +126,15 @@ export function Room() {
                         setSubmitting(false);
                         const existingMessages = [...messages];
                         setMessages([...existingMessages, new Message({id: 0, message: values.chat_message})]);
+<<<<<<< HEAD:frontend/src/components/Room/index.js
+                        await sendMessage(socket, {text: values.chat_message, room: selectedRoom});
+=======
                         await sendMessage(socket, {chatMessage: values.chat_message, selectedRoom});
+>>>>>>> main:frontend/src/Room.js
                     }}
                 >
                     {({isSubmitting}) => (
                         <Form>
-                            <span className="user-typing">{isTyping && `a user is typing....`}</span>
                             <Field name="chat_message">
                                 {({
                                     field, // { name, value, onChange, onBlur }

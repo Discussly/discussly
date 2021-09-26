@@ -31,6 +31,7 @@ module.exports = {
         "no-param-reassign": ["error", {props: false}],
         "no-unreachable": "error",
         "no-console": "off",
+        "no-undef": "off",
         "class-methods-use-this": ["warn"],
         radix: ["warn", "as-needed"],
         yoda: ["error", "never", {exceptRange: true}],

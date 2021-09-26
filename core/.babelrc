@@ -1,9 +1,9 @@
 {
-    "presets": [
-
-        "@babel/preset-env"
-
-    ],
-    "sourceMaps": "inline",
-    "retainLines": true
+    "presets": [["@babel/preset-env", {"targets": {"node": "current"}, "debug": true}]],
+    "env": {
+        "development": {
+            "sourceMaps": true,
+            "retainLines": true
+        }
+    }
 }

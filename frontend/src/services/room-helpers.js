@@ -1,11 +1,11 @@
 /* eslint-disable no-undef */
 /* eslint-disable no-param-reassign */
+import {useRef} from "react";
 import {Device} from "mediasoup-client";
 const io = require("socket.io-client");
 import {v4 as uuidv4} from "uuid";
+import {API_BASEURL} from "./api-config";
 
-const {REACT_APP_SERVER_HOST, REACT_APP_SERVER_PORT} = process.env;
-const serverUrl = `http://${REACT_APP_SERVER_HOST}:${REACT_APP_SERVER_PORT}`;
 const opts = {
     path: "/server",
     transports: ["websocket"],
@@ -19,7 +19,7 @@ let audioConsumers = {};
 let joinedRoom;
 
 const connectSocket = () => {
-    const socket = io.connect(serverUrl, opts);
+    const socket = io.connect(API_BASEURL, opts);
 
     socket.on("connect", (evt) => {
         console.log("socket.io connected()");
@@ -92,6 +92,8 @@ const startMedia = async (localStream) => {
     }
 };
 
+const getExistingRooms = async (socket) => sendRequest(socket, "getExistingRooms");
+
 const joinRoom = async (socket, selectedRoom) => {
     // -- join room
     const joinedRoom = await sendRequest(socket, "joinRoom", {roomId: selectedRoom});
@@ -99,9 +101,8 @@ const joinRoom = async (socket, selectedRoom) => {
     return joinedRoom;
 };
 
-const sendMessage = async (socket, data) => {
-    const {chatMessage, selectedRoom} = data;
-    await sendRequest(socket, "send_message", {chatMessage, selectedRoom});
+const sendMessage = async (socket, message) => {
+    await sendRequest(socket, "send_message", message);
 };
 
 const publish = async (socket, localStream, joinedRoom, clientId) => {
@@ -261,7 +262,12 @@ const consumeAll = (socket, transport, remoteVideoIds, remotAudioIds) => {
 
 const consumeAdd = async (socket, transport, remoteSocketId, prdId, trackKind) => {
     console.log("--start of consumeAdd -- kind=%s", trackKind);
-    const {rtpCapabilities} = device;
+    const rtpCapabilities = device?.rtpCapabilities;
+
+    if (!rtpCapabilities) {
+        console.log("there is no rtpCapabilities");
+        return;
+    }
 
     const data = await sendRequest(socket, "consumeAdd", {
         rtpCapabilities: rtpCapabilities,
@@ -325,6 +331,13 @@ const addConsumer = (id, consumer, kind) => {
         console.log("audioConsumers count=" + Object.keys(audioConsumers).length);
     } else {
         console.warn("UNKNOWN consumer kind=" + kind);
+    }
+};
+
+const removeRemoteVideo = (id) => {
+    const video = findRemoteVideo(id);
+    if (video) {
+        video.remove();
     }
 };
 
@@ -406,4 +419,4 @@ const sendRequest = (socket, type, data) => {
     });
 };
 
-export {publish, startMedia, createRoom, connectSocket, joinRoom, sendMessage};
+export {publish, startMedia, createRoom, connectSocket, joinRoom, sendMessage, getExistingRooms};

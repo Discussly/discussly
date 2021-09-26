@@ -1,17 +1,16 @@
-/* eslint-disable no-undef */
-/* eslint-disable no-console */
 "use strict";
 
+require("./models/index");
 import express from "express";
 import http from "http";
 import path from "path";
+import cors from "cors";
 import * as mediasoup from "mediasoup";
 import * as socketIO from "socket.io";
 import {mediasoupOptions} from "../config.js";
 import {SocketHelper} from "./helpers/socket-helper.js";
 import {addSocketEvents} from "./handlers/socket-events";
 import {router} from "./handlers/register-routes";
-import {SequelizeConnection} from "./handlers/connect-sequelize";
 import {registerJwtStrategy} from "./modules/auth/jwt.strategy";
 
 let webServer;
@@ -25,6 +24,11 @@ const workers = [];
 async function runExpressApp() {
     expressApp = express();
     expressApp.use(express.json());
+    expressApp.use(
+        cors({
+            origin: "*",
+        }),
+    );
     expressApp.use("/", router);
 
     const dirname = path.resolve(path.dirname(""));
@@ -40,9 +44,6 @@ async function runExpressApp() {
 
         next();
     });
-
-    const sequelizeConnection = new SequelizeConnection();
-   // await sequelizeConnection.registerModels();
 
     registerJwtStrategy();
 }
@@ -84,9 +85,6 @@ async function runSocketServer() {
     });
 
     socketServer.on("connection", (socket) => {
-        const existingRooms = SocketHelper.getExistingRooms();
-        socket.emit("existingRooms", {existingRooms});
-
         // add socket events
         addSocketEvents(socket, worker);
 

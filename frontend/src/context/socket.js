@@ -1,5 +1,5 @@
 import React from "react";
-import {connectSocket} from "../roomHelpers";
+import {connectSocket} from "../services/room-helpers";
 
 export const socket = connectSocket();
 export const SocketContext = React.createContext();

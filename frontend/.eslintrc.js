@@ -15,6 +15,7 @@ module.exports = {
         },
     },
     plugins: ["react", "prettier"],
+    parser: "babel-eslint",
     rules: {
         "react/jsx-indent": [1, 4],
         "react/jsx-filename-extension": [1, {extensions: [".js", ".jsx"]}],

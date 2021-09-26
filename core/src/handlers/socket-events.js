@@ -2,13 +2,12 @@ import {SocketHelper} from "../helpers/socket-helper";
 import {Room} from "../helpers/room";
 
 export const addSocketEvents = (socket, worker) => {
-    /*
-        socket.on("disconnect", function () {
-            SocketHelper.cleanUpPeer(socket.roomname, socket);
-            // --- socket.io room ---
-            socket.leave(roomName);
-        });
-*/
+    socket.on("disconnect", function () {
+        SocketHelper.cleanUpPeer(socket.roomname, socket);
+        // --- socket.io room ---
+        socket.leave(socket.roomname);
+    });
+
     socket.on("error", function (err) {
         console.error("socket ERROR:", err);
     });
@@ -18,15 +17,15 @@ export const addSocketEvents = (socket, worker) => {
 
     socket.on("send_message", (data) => {
         console.log(data);
-        const {selectedRoom, chatMessage} = data;
-        socket.to(selectedRoom).emit("message", {type: "room_message", chatMessage});
+        const {text, room} = data;
+        socket.to(room).emit("message", {type: "room_message", text});
     });
 
     socket.on("getRouterRtpCapabilities", (data, callback) => {
         const {roomId} = data;
         console.log(data);
         const joinedRoom = Room.getRoom(roomId);
-        const router = joinedRoom.router;
+        const router = joinedRoom?.router;
 
         if (router) {
             SocketHelper.sendResponse(router.rtpCapabilities, callback);
@@ -46,7 +45,13 @@ export const addSocketEvents = (socket, worker) => {
             await SocketHelper.setupRoom(worker, roomId);
         }
 
-        SocketHelper.sendResponse(roomId, callback);
+        socket.emit("message", {type: "room_broadcast", text: [roomId]});
+    });
+
+    socket.on("getExistingRooms", async () => {
+        // send existing rooms on first join
+        const existingRooms = SocketHelper.getExistingRooms();
+        socket.emit("message", {type: "room_broadcast", text: existingRooms});
     });
 
     socket.on("joinRoom", async (data, callback) => {

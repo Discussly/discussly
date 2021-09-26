@@ -82,7 +82,7 @@ export class SocketHelper {
 
     static removeConsumerSetDeep = (roomname, localId) => {
         const room = Room.getRoom(roomname);
-        room.removeConsumerSetDeep(localId);
+        room?.removeConsumerSetDeep(localId);
     };
 
     static createTransport = async (roomname) => {
@@ -199,24 +199,24 @@ export class SocketHelper {
         const transport = SocketHelper.getConsumerTransport(roomName, id);
         if (transport) {
             transport.close();
-            room.removeConsumerTransport(roomName, id);
+            room.removeConsumerTransport(id);
         }
 
         const videoProducer = SocketHelper.getProducer(roomName, id, "video");
         if (videoProducer) {
             videoProducer.close();
-            room.removeProducer(roomName, id, "video");
+            room.removeProducer(id, "video");
         }
         const audioProducer = SocketHelper.getProducer(roomName, id, "audio");
         if (audioProducer) {
             audioProducer.close();
-            room.removeProducer(roomName, id, "audio");
+            room.removeProducer(id, "audio");
         }
 
         const producerTransport = SocketHelper.getProducerTransport(roomName, id);
         if (producerTransport) {
             producerTransport.close();
-            room.removeProducerTransport(roomName, id);
+            room.removeProducerTransport(id);
         }
     };
 }
