@@ -1,6 +1,6 @@
 /* eslint-disable no-undef */
 import React, {useContext, useState, useEffect} from "react";
-import {publish, startMedia, createRoom, joinRoom, sendMessage} from "../../services/room-helpers";
+import {publish, startMedia, createRoom, joinRoom, sendMessage, getExistingRooms} from "../../services/room-helpers";
 import {SocketContext} from "../../context/socket.js";
 import {Formik, Form, Field, ErrorMessage} from "formik";
 import {ChatFeed, Message} from "react-chat-ui";
@@ -22,12 +22,14 @@ export function Room() {
     const [isTyping, setIsTyping] = useState(false);
 
     useEffect(() => {
-        sendMessage(socket, {user: "a", is_typing: isTyping});
-    }, [isTyping]);
+        if (selectedRoom) {
+            sendMessage(socket, {user: "a", is_typing: isTyping});
+        }
+    }, [isTyping, selectedRoom]);
 
-    socket.on("existingRooms", (message) => {
-        setRooms(message.existingRooms);
-    });
+    useEffect(() => {
+        socket.emit("getExistingRooms");
+    }, []);
 
     socket.on("message", (message) => {
         console.log("socket.io message:", message);
@@ -35,14 +37,15 @@ export function Room() {
             if (socket.id !== message.id) {
                 console.warn("WARN: something wrong with clientID", socket.io, message.id);
             }
-
             setClientId(message.id);
             console.log("connected to server. clientId=" + message.id);
         } else if (message.type === "room_message") {
             console.log(message);
             const existingMessages = [...messages];
-            const newMessage = message.data.message;
+            const newMessage = message.text;
             setMessages([...existingMessages, new Message({id: 1, message: newMessage})]);
+        } else if (message.type === "room_broadcast") {
+            setRooms([...rooms, ...message.text]);
         } else {
             console.error("UNKNOWN message from server:", message);
         }
@@ -122,7 +125,7 @@ export function Room() {
                         setSubmitting(false);
                         const existingMessages = [...messages];
                         setMessages([...existingMessages, new Message({id: 0, message: values.chat_message})]);
-                        await sendMessage(socket, values.chat_message);
+                        await sendMessage(socket, {text: values.chat_message, room: selectedRoom});
                     }}
                 >
                     {({isSubmitting}) => (

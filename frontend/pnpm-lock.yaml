@@ -8,11 +8,15 @@ specifiers:
   '@testing-library/user-event': ^12.1.10
   '@types/react': ^17.0.5
   axios: ^0.21.1
+  dotenv: ^10.0.0
   easy-peasy: ^5.0.3
+  eslint-config-prettier: ^8.3.0
   eslint-plugin-prettier: ^3.4.0
   formik: ^2.2.9
   history: ^4.10.1
+  lodash: ^4.17.21
   lodash-es: ^4.17.21
+  lodash.debounce: ^4.0.8
   mediasoup-client: ^3.6.36
   react: ^17.0.2
   react-chat-ui: ^0.4.0
@@ -34,10 +38,11 @@ dependencies:
   '@testing-library/user-event': 12.8.3
   axios: 0.21.1
   easy-peasy: 5.0.3_react@17.0.2
-  eslint-plugin-prettier: 3.4.0
+  eslint-plugin-prettier: 3.4.0_eslint-config-prettier@8.3.0
   formik: 2.2.9_react@17.0.2
   history: 4.10.1
   lodash-es: 4.17.21
+  lodash.debounce: 4.0.8
   mediasoup-client: 3.6.36
   react: 17.0.2
   react-chat-ui: 0.4.0_react-dom@17.0.2+react@17.0.2
@@ -53,6 +58,9 @@ dependencies:
 
 devDependencies:
   '@types/react': 17.0.5
+  dotenv: 10.0.0
+  eslint-config-prettier: 8.3.0
+  lodash: 4.17.21
 
 packages:
 
@@ -4768,6 +4776,11 @@ packages:
     resolution: {integrity: sha512-YXQl1DSa4/PQyRfgrv6aoNjhasp/p4qs9FjJ4q4cQk+8m4r6k4ZSiEyytKG8f8W9gi8WsQtIObNmKd+tMzNTmA==}
     dev: false
 
+  /dotenv/10.0.0:
+    resolution: {integrity: sha512-rlBi9d8jpv9Sf1klPjNfFAuWDjKLwTIJJ/VxtoTwIR6hnZxcEOQCZg2oIL3MWBYw5GpUDKOEnND7LXTbIpQ03Q==}
+    engines: {node: '>=10'}
+    dev: true
+
   /dotenv/8.2.0:
     resolution: {integrity: sha512-8sJ78ElpbDJBHNeBzUbUVLsqKdccaa/BXF1uPTw3GrvQTBgrQrtObr2mUrE38vzYd8cEv+m/JBfDLioYcfXoaw==}
     engines: {node: '>=8'}
@@ -5024,6 +5037,13 @@ packages:
       source-map: 0.6.1
     dev: false
 
+  /eslint-config-prettier/8.3.0:
+    resolution: {integrity: sha512-BgZuLUSeKzvlL/VUjx/Yb787VQ26RU3gGjA3iiFvdsp/2bMfVIWUVP7tjxtjS0e+HP409cPlPvNkQloz8C91ew==}
+    hasBin: true
+    peerDependencies:
+      eslint: '>=7.0.0'
+    dev: true
+
   /eslint-config-react-app/6.0.0_5d3c8c6278315432d8444ebef3eaf0f3:
     resolution: {integrity: sha512-bpoAAC+YRfzq0dsTk+6v9aHm/uqnDwayNAXleMypGl6CpxI9oXXscVHo4fk3eJPIn+rsbtNetB4r/ZIidFIE8A==}
     engines: {node: ^10.12.0 || >=12.0.0}
@@ -5145,7 +5165,7 @@ packages:
       language-tags: 1.0.5
     dev: false
 
-  /eslint-plugin-prettier/3.4.0:
+  /eslint-plugin-prettier/3.4.0_eslint-config-prettier@8.3.0:
     resolution: {integrity: sha512-UDK6rJT6INSfcOo545jiaOwB701uAIt2/dR7WnFQoGCVl1/EMqdANBmwUaqqQ45aXprsTGzSa39LI1PyuRBxxw==}
     engines: {node: '>=6.0.0'}
     peerDependencies:
@@ -5156,6 +5176,7 @@ packages:
       eslint-config-prettier:
         optional: true
     dependencies:
+      eslint-config-prettier: 8.3.0
       prettier-linter-helpers: 1.0.0
     dev: false
 
@@ -7843,7 +7864,6 @@ packages:
 
   /lodash/4.17.21:
     resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
-    dev: false
 
   /loglevel/1.7.1:
     resolution: {integrity: sha512-Hesni4s5UkWkwCGJMQGAh71PaLUmKFM60dHvq0zi/vDhhrzuk+4GgNbTXJ12YYQJn6ZKBDNIjYcuQGKudvqrIw==}

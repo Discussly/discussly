@@ -32,10 +32,9 @@ export async function login(data, res) {
     }
 
     const foundUser = await Database.User.findOne({where: {email: data.email}});
+    const validPassword = await foundUser.validPassword(data.password);
 
-    console.log(foundUser);
-
-    if (!foundUser) {
+    if (!validPassword || !foundUser) {
         return res.status(403).json({error: "Forbidden !"});
     }
 

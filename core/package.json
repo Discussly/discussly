@@ -11,7 +11,7 @@
   },
   "scripts": {
     "start": "node src/app.js",
-    "build": "babel src -d dist --source-maps",
+    "build": "babel src --out-dir dist --source-maps",
     "lint:fix": "eslint . --fix",
     "dev": "nodemon --exec node_modules/.bin/babel-node src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -19,6 +19,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "bcrypt": "^5.0.1",
     "cors": "^2.8.5",
     "dotenv": "^10.0.0",
     "eslint-config-prettier": "^8.3.0",
@@ -43,7 +44,7 @@
     "@babel/core": "^7.14.6",
     "@babel/node": "^7.14.7",
     "@babel/preset-env": "^7.14.7",
-    "babel-register": "^6.26.0",
+    "@babel/register": "^7.15.3",
     "eslint": "^4.19.1",
     "eslint-config-airbnb": "^16.1.0",
     "eslint-plugin-import": "^2.22.1",

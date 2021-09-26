@@ -1,0 +1,38 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug - core",
+            "cwd": "${workspaceFolder}/core",
+            "runtimeExecutable": "${workspaceFolder}/core/node_modules/.bin/nodemon",
+            "runtimeArgs": [
+                "--nolazy",
+                 "--require", 
+                 "@babel/register"
+            ],
+            "env": {
+                "BABEL_ENV": "debug",
+            },
+            "skipFiles": ["node_modules/**/*.js", "<node_internals>/**/*.js"],
+            "program": "${workspaceFolder}/core/src/app.js",
+            "autoAttachChildProcesses": true,
+            "restart": true,
+            "protocol": "inspector",
+            "stopOnEntry": false,
+            "sourceMaps": true,
+            "showAsyncStacks": true,
+            "console": "internalConsole",
+            "internalConsoleOptions": "neverOpen",
+        },
+		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach",
+			"restart": true,
+			"port": 9229
+		},
+
+	]
+}

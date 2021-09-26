@@ -85,9 +85,6 @@ async function runSocketServer() {
     });
 
     socketServer.on("connection", (socket) => {
-        const existingRooms = SocketHelper.getExistingRooms();
-        socket.emit("existingRooms", {existingRooms});
-
         // add socket events
         addSocketEvents(socket, worker);
 
