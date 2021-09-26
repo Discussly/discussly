@@ -3,17 +3,17 @@
 require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
-const Sequelize = require("sequelize");
+const {Sequelize} = require("sequelize");
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || "development";
 const config = require(__dirname + "/../config/config.json")[env];
 const Database = {};
 
 let sequelize;
-if (config.use_env_variable) {
-    sequelize = new Sequelize(process.env[config.use_env_variable], config);
+if (env === "development") {
+    sequelize = new Sequelize(config.db, {dialect: config.dialect});
 } else {
-    sequelize = new Sequelize(config.database, config.username, config.password, config);
+    sequelize = new Sequelize(config.db, config.user, config.password, {host: config.host, dialect: config.dialect});
 }
 
 fs.readdirSync(__dirname)

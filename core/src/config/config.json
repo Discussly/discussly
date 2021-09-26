@@ -1,7 +1,15 @@
 
 {
     "development": {
-        "use_env_variable": "DB_URL",
+        "db": "postgresql://localhost:5432/discussly?user=discusslyadmin&password=discusslyadminpassword",
+        "dialect": "postgres"
+
+    },
+    "production": {
+        "db": "discussly",
+        "host": "discussly-database.csdgflmo7pmu.us-east-2.rds.amazonaws.com",
+        "user": "discusslyadmin",
+        "password": "discusslyadminpassword",
         "dialect": "postgres"
     }
 }
