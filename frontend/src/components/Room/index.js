@@ -4,7 +4,7 @@ import {publish, startMedia, createRoom, joinRoom, sendMessage, getExistingRooms
 import {SocketContext} from "../../context/socket.js";
 import {Formik, Form, Field, ErrorMessage} from "formik";
 import {ChatFeed, Message} from "react-chat-ui";
-import debounce from "lodash.debounce";
+import {debounce} from "lodash";
 
 export function Room() {
     const socket = useContext(SocketContext);
@@ -95,6 +95,7 @@ export function Room() {
                     onClick={async () => {
                         const newRoom = await createRoom(socket);
                         console.log(newRoom);
+                        setRooms([...rooms, newRoom]);
                     }}
                 >
                     Create a Room
@@ -125,7 +126,11 @@ export function Room() {
                         setSubmitting(false);
                         const existingMessages = [...messages];
                         setMessages([...existingMessages, new Message({id: 0, message: values.chat_message})]);
+<<<<<<< HEAD:frontend/src/components/Room/index.js
                         await sendMessage(socket, {text: values.chat_message, room: selectedRoom});
+=======
+                        await sendMessage(socket, {chatMessage: values.chat_message, selectedRoom});
+>>>>>>> main:frontend/src/Room.js
                     }}
                 >
                     {({isSubmitting}) => (

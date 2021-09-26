@@ -7,7 +7,7 @@ import path from "path";
 import cors from "cors";
 import * as mediasoup from "mediasoup";
 import * as socketIO from "socket.io";
-import mediasoupOptions from "../config.js";
+import {mediasoupOptions} from "../config.js";
 import {SocketHelper} from "./helpers/socket-helper.js";
 import {addSocketEvents} from "./handlers/socket-events";
 import {router} from "./handlers/register-routes";

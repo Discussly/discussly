@@ -1,6 +1,6 @@
 import os from "os";
 
-export default {
+export const mediasoupOptions = {
     // Worker settings
     numWorkers: Object.keys(os.cpus()).length,
     worker: {
@@ -43,7 +43,8 @@ export default {
     // WebRtcTransport settings
     webRtcTransport: {
         listenIps: [{ip: "127.0.0.1", announcedIp: null}],
-        listenPort: 3050,
+        listenPort: 3003,
+        listenIp: "127.0.0.1",
         enableUdp: true,
         enableTcp: true,
         preferUdp: true,
