@@ -9,8 +9,17 @@ export const HTTP = {
 };
 
 // eslint-disable-next-line no-undef
-const {REACT_APP_SERVER_HOST, REACT_APP_SERVER_PORT} = process.env;
-export const API_BASEURL = `http://${REACT_APP_SERVER_HOST}:${REACT_APP_SERVER_PORT}`;
+const {REACT_APP_SERVER_HOST, REACT_APP_SERVER_PORT, NODE_ENV} = process.env;
+
+let API_BASEURL;
+
+if (NODE_ENV === "development") {
+    API_BASEURL = `http://${REACT_APP_SERVER_HOST}:${REACT_APP_SERVER_PORT}`;
+} else {
+    API_BASEURL = `http://${REACT_APP_SERVER_HOST}`;
+}
+
+export {API_BASEURL};
 
 export default {
     LOGIN: ({payload}) => ({
