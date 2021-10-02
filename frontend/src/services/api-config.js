@@ -16,7 +16,7 @@ let API_BASEURL;
 if (NODE_ENV === "development") {
     API_BASEURL = `http://${REACT_APP_SERVER_HOST}:${REACT_APP_SERVER_PORT}`;
 } else {
-    API_BASEURL = `http://${REACT_APP_SERVER_HOST}`;
+    API_BASEURL = `https://${REACT_APP_SERVER_HOST}`;
 }
 
 export {API_BASEURL};
